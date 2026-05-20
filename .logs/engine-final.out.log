@@ -1,0 +1,19 @@
+
+> exness-v3@0.0.1 start:engine C:\Users\USER\Desktop\exness-v3
+> pnpm --filter engine start
+
+
+> engine@ start C:\Users\USER\Desktop\exness-v3\apps\engine
+> tsx index.ts
+
+Consumer group exists
+Restored engine snapshot from PostgreSQL
+Engine connected to Redis and PostgreSQL
+[candlesticks] Seeded 1000 candles for BTC_USDC 1m from Backpack klines.
+[ENGINE BALANCE] User: tradex.smoke.1779235024532@example.com balance: 10000
+[ENGINE BALANCE] User: tradex.smoke.1779235024532@example.com balance: 10000
+[ENGINE BALANCE] User: tradex.smoke.1779235024532@example.com balance: 10000
+[ENGINE BALANCE] User: balcheck.1779235074624@example.com balance: 10000
+C:\Users\USER\Desktop\exness-v3\apps\engine:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  engine@ start: `tsx index.ts`
+Exit status 4294967295

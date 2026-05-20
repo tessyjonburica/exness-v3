@@ -1,0 +1,14 @@
+
+> exness-v3@0.0.1 start:engine C:\Users\USER\Desktop\exness-v3
+> pnpm --filter engine start
+
+
+> engine@ start C:\Users\USER\Desktop\exness-v3\apps\engine
+> tsx index.ts
+
+Consumer group exists
+Restored engine snapshot from PostgreSQL
+Engine connected to Redis and PostgreSQL
+[candlesticks] Seeded 100 candles for BTC_USDC 1m from Backpack klines.
+[candlesticks] Seeded 100 candles for ETH_USDC 1m from Backpack klines.
+[candlesticks] Seeded 100 candles for SOL_USDC 1m from Backpack klines.

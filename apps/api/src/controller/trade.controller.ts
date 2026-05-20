@@ -1,9 +1,10 @@
 import type { Request, Response } from 'express';
-import { RedisSubscriber } from '../services/redis.service.js';
-import { closeOrderSchema, openOrderSchema } from '../validations/orderSchema.js';
+import { RedisSubscriber } from '../services/redis.service';
+import { closeOrderSchema, openOrderSchema } from '../validations/orderSchema';
 import { randomUUID } from 'crypto';
 import dbClient from '@exness-v3/db';
 import { httpPusher } from '@exness-v3/redis/streams';
+import { ensureUserInEngine } from '../services/engine.service';
 
 export const CREATE_ORDER_QUEUE = 'stream:engine';
 
@@ -22,27 +23,48 @@ export async function createOrder(req: Request, res: Response) {
   }
 
   const { asset, leverage, quantity, slippage, side, stopLoss, takeProfit, tradeOpeningPrice } = data;
-      try {
-        const requestId = randomUUID();
+  try {
+    const user = await dbClient.user.findFirst({
+      where: { email: req.user as string },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        balance: true,
+      },
+    });
 
-        const payload = {
-          type: 'CREATE_ORDER',
-          requestId: requestId,
-          data: JSON.stringify({
-            email: req.user,
-            trade: {
-              id: randomUUID(),
-              asset,
-              quantity,
-              side,
-              leverage,
-              slippage,
-              stopLoss,
-              takeProfit,
-              tradeOpeningPrice,
-            },
-          }),
-        };
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: null,
+        error: 'USER_NOT_FOUND',
+      });
+      return;
+    }
+
+    await ensureUserInEngine(user);
+
+    const requestId = randomUUID();
+
+    const payload = {
+      type: 'CREATE_ORDER',
+      requestId: requestId,
+      data: JSON.stringify({
+        email: req.user,
+        trade: {
+          id: randomUUID(),
+          asset,
+          quantity,
+          side,
+          leverage,
+          slippage,
+          stopLoss,
+          takeProfit,
+          tradeOpeningPrice,
+        },
+      }),
+    };
 
     const openPending = redisSubscriber.waitForMessage<{ tradeDetails: unknown }>(requestId);
     try {
@@ -60,12 +82,39 @@ export async function createOrder(req: Request, res: Response) {
       trade: tradeDetails,
     })
 
-  } catch (err) {
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'reason' in err) {
+      const body = err as { reason?: string; detail?: string; marginRequired?: number; availableBalance?: number };
+      const reason = body.reason ?? 'ORDER_REJECTED';
+
+      let status = 422;
+      if (reason === 'User not found') {
+        status = 404;
+      } else if (reason === 'PRICE_UNAVAILABLE') {
+        status = 503;
+      } else if (reason === 'SLIPPAGE_EXCEEDED') {
+        status = 422;
+      }
+
+      res.status(status).json({
+        success: false,
+        message: reason,
+        error: reason,
+        detail: body.detail,
+        marginRequired: body.marginRequired,
+        availableBalance: body.availableBalance,
+      });
+      return;
+    }
+
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[createOrder]', message, err);
+
     res.status(500).json({
       success: false,
       message: null,
       error: 'INTERNAL_SERVER_ERROR',
-      engine: err,
+      detail: message,
     })
     return;
   }
@@ -167,6 +216,9 @@ export async function fetchCloseOrders(req: Request, res: Response) {
       where: {
         userId: user.id,
       },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
 
     return res.status(200).json({
@@ -177,7 +229,7 @@ export async function fetchCloseOrders(req: Request, res: Response) {
     });
 
   } catch (err) {
-    console.log(err);
+    console.error('[fetchCloseOrders]', err);
     res.status(500).json({ 
       success: false,
       message: null,
@@ -203,15 +255,13 @@ export async function fetchOpenOrders(req: Request, res: Response) {
 
     const openOrdersPending = redisSubscriber.waitForMessage<{ orders: unknown }>(requestId);
     try {
-      const res1 = await httpPusher.xAdd(CREATE_ORDER_QUEUE, '*', payload);
-      console.log(res1);
+      await httpPusher.xAdd(CREATE_ORDER_QUEUE, '*', payload);
     } catch (e) {
       redisSubscriber.cancelWait(requestId);
       throw e;
     }
 
     const { orders } = await openOrdersPending;
-    console.log(orders);
 
     return res.status(200).json({
       success: true, 
@@ -221,7 +271,7 @@ export async function fetchOpenOrders(req: Request, res: Response) {
     });
 
   } catch (err) {
-    console.log(err);
+    console.error('[fetchOpenOrders]', err);
     res.status(500).json({
       success: false,
       message: null,
@@ -233,7 +283,7 @@ export async function fetchOpenOrders(req: Request, res: Response) {
 
 export async function fetchCandlesticks(req: Request, res: Response) {
   try {
-    const { symbol, timeframe } = req.query;
+    const { symbol, timeframe, limit } = req.query;
 
     if (!symbol || !timeframe) {
       res.status(400).json({
@@ -252,6 +302,10 @@ export async function fetchCandlesticks(req: Request, res: Response) {
       data: JSON.stringify({
         symbol: symbol as string,
         timeframe: timeframe as string,
+        limit:
+          typeof limit === 'string' && Number.isFinite(Number(limit))
+            ? Number(limit)
+            : undefined,
       }),
     };
 
@@ -267,6 +321,7 @@ export async function fetchCandlesticks(req: Request, res: Response) {
 
     res.status(200).json({ 
       success: true,
+      candlesticks,
       message: candlesticks,
       error: null,
     });

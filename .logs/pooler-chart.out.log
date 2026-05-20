@@ -1,0 +1,12 @@
+
+> exness-v3@0.0.1 start:pooler C:\Users\USER\Desktop\exness-v3
+> pnpm --filter pooler start
+
+
+> pooler@ start C:\Users\USER\Desktop\exness-v3\apps\pooler
+> tsx src/index.ts
+
+Connecting to Redis...
+Development quote generator enabled; publishing local fallback quotes
+Connected to Redis
+Published first quote snapshot to Redis channel 'ws:price:update'

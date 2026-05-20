@@ -1,5 +1,5 @@
 import { engineResponsePuller } from '@exness-v3/redis/streams';
-import type { CallbackEntry, EngineMessage, StreamResponse } from '../types/index.js';
+import type { CallbackEntry, EngineMessage, StreamResponse } from '../types/index';
 
 export const ACKNOWLEDGEMENT_QUEUE = 'stream:engine:acknowledgement';
 
@@ -13,6 +13,7 @@ const SUCCESS_RESPONSE_TYPES = new Set([
   'TRADE_FETCH_ACKNOWLEDGEMENT',
   'CANDLESTICK_FETCH_ACKNOWLEDGEMENT',
   'USER_ALREADY_EXISTS',
+  'USER_BALANCE_UPDATED',
 ]);
 
 const FAILURE_RESPONSE_TYPES = new Set([
@@ -28,15 +29,19 @@ const FAILURE_RESPONSE_TYPES = new Set([
   'TRADE_FETCH_FAILED',
   'CANDLESTICK_FETCH_ERROR',
   'SOMETHING_WENT_WRONG',
+  'USER_BALANCE_UPDATE_FAILED',
+  'USER_BALANCE_UPDATE_ERROR',
 ]);
 
-engineResponsePuller.connect().catch((err) => {
+engineResponsePuller.connect().catch((err: unknown) => {
   console.error('[RedisSubscriber] Failed to connect:', err);
 });
 
 export class RedisSubscriber {                                   //Redis subscriber
   private static instance: RedisSubscriber;
   private callbacks: Record<string, CallbackEntry> = {};
+  private lastReadId = '$';
+  private connectPromise: Promise<void> | null = null;
 
   private constructor() {
     this.startMessageLoop();
@@ -49,11 +54,30 @@ export class RedisSubscriber {                                   //Redis subscri
     return RedisSubscriber.instance;
   }
 
+  private async ensureConnected(): Promise<void> {
+    if (engineResponsePuller.isOpen) {
+      return;
+    }
+
+    if (!this.connectPromise) {
+      this.connectPromise = engineResponsePuller
+        .connect()
+        .then(() => undefined)
+        .finally(() => {
+          this.connectPromise = null;
+        });
+    }
+
+    await this.connectPromise;
+  }
+
   private async startMessageLoop(): Promise<void> {
     while (true) {
       try {
+        await this.ensureConnected();
+
         const response = await engineResponsePuller.xRead(
-          { key: ACKNOWLEDGEMENT_QUEUE, id: '$' },
+          { key: ACKNOWLEDGEMENT_QUEUE, id: this.lastReadId },
           { BLOCK: 0 }
         );
 
@@ -73,6 +97,8 @@ export class RedisSubscriber {                                   //Redis subscri
     if (!messages?.length) return;
 
     for (const entry of messages) {
+      this.lastReadId = entry.id;
+
       const firstMessage = entry?.message;
       if (!firstMessage) continue;
 

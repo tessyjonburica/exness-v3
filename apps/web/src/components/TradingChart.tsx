@@ -1,196 +1,321 @@
-import { useEffect, useRef, useMemo } from 'react';
-import { createChart, IChartApi, ISeriesApi, CandlestickSeriesPartialOptions } from 'lightweight-charts';
-import { getCandlesticks } from '@/lib/candlestick-store';
-import { useTheme } from '@/contexts/ThemeContext';
-import { useBackendCandles } from '@/hooks/useBackendCandles';
+import { useEffect, useMemo, useRef } from "react";
+import { toast } from "sonner";
+import {
+  createChart,
+  type IChartApi,
+  type ISeriesApi,
+  type UTCTimestamp,
+} from "lightweight-charts";
+import { useTheme } from "@/hooks/useTheme";
+import { useBackendCandles } from "@/hooks/useBackendCandles";
+import { getCandlesticks, type Candlestick } from "@/lib/candlestick-store";
 
 interface TradingChartProps {
   symbol: string;
   interval: string;
 }
 
-// Calculate appropriate tick size based on timeframe
-function getTickSize(interval: string): number {
-  const tickSizes: Record<string, number> = {
-    '1m': 20,    // $20 increments for 1 minute
-    '5m': 50,    // $50 increments for 5 minutes
-    '30m': 100,  // $100 increments for 30 minutes
-    '1h': 200,   // $200 increments for 1 hour (current default)
-    '6h': 500,   // $500 increments for 6 hours
-    '1d': 1000,  // $1000 increments for 1 day
-    '3d': 2000,  // $2000 increments for 3 days
-  };
-  return tickSizes[interval] || 200;
+type ChartInterval = "1m" | "5m" | "30m" | "1h" | "6h" | "1d" | "3d";
+
+const MAX_FUTURE_DRIFT_SECONDS = 5 * 60;
+
+function isValidCandle(candle: Candlestick) {
+  return (
+    Number.isFinite(candle.time) &&
+    candle.time > 0 &&
+    Number.isFinite(candle.open) &&
+    Number.isFinite(candle.high) &&
+    Number.isFinite(candle.low) &&
+    Number.isFinite(candle.close)
+  );
+}
+
+function normalizeCandleTime(time: number) {
+  if (!Number.isFinite(time) || time <= 0) {
+    return null;
+  }
+
+  return time > 10_000_000_000 ? Math.floor(time / 1000) : Math.floor(time);
+}
+
+function clampFutureCandles(candles: Candlestick[]) {
+  const maxTime = Math.floor(Date.now() / 1000) + MAX_FUTURE_DRIFT_SECONDS;
+  return candles.filter((candle) => candle.time <= maxTime);
+}
+
+function normalizeCandles(candles: Candlestick[]) {
+  const merged = new Map<number, Candlestick>();
+
+  for (const candle of candles) {
+    if (!isValidCandle(candle)) {
+      continue;
+    }
+
+    const normalizedTime = normalizeCandleTime(candle.time);
+    if (normalizedTime === null) {
+      continue;
+    }
+
+    const normalizedCandle: Candlestick = {
+      time: normalizedTime,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+    };
+
+    const existing = merged.get(normalizedTime);
+    if (!existing) {
+      merged.set(normalizedTime, normalizedCandle);
+      continue;
+    }
+
+    merged.set(normalizedTime, {
+      time: normalizedTime,
+      open: existing.open,
+      high: Math.max(existing.high, normalizedCandle.high),
+      low: Math.min(existing.low, normalizedCandle.low),
+      close: normalizedCandle.close,
+    });
+  }
+
+  return clampFutureCandles([...merged.values()].sort((left, right) => left.time - right.time));
+}
+
+function mergeCandlesByTime(backendCandles: Candlestick[], frontendCandles: Candlestick[]) {
+  return normalizeCandles([...backendCandles, ...frontendCandles]).slice(-1000);
+}
+
+function toChartCandles(candles: Candlestick[]) {
+  return candles.map((candle) => ({
+    time: candle.time as UTCTimestamp,
+    open: candle.open,
+    high: candle.high,
+    low: candle.low,
+    close: candle.close,
+  }));
+}
+
+function getVisibleBars(width: number) {
+  if (width <= 480) return 55;
+  if (width <= 820) return 70;
+  if (width <= 1180) return 90;
+  return 110;
 }
 
 export function TradingChart({ symbol, interval }: TradingChartProps) {
   const { theme } = useTheme();
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+  const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const lastErrorSignatureRef = useRef<string | null>(null);
+  const visibleBarsRef = useRef(110);
+  const candleCountRef = useRef(0);
+  const { data: backendData, error, isError, isPending } = useBackendCandles(symbol, interval);
 
-  // Fetch historical candlestick data from backend
-  const { data: backendData } = useBackendCandles(symbol, interval);
+  const historicalCandles = useMemo(() => backendData?.candlesticks ?? [], [backendData]);
+  const liveCandles = useMemo(() => {
+    const normalizedInterval = interval as ChartInterval;
+    return getCandlesticks(symbol, normalizedInterval);
+  }, [symbol, interval]);
 
-  // Combine backend and frontend candlestick data
   const allCandles = useMemo(() => {
-    const frontendCandles = getCandlesticks(symbol, interval as any);
-    const backendCandles = backendData?.candlesticks || [];
+    if (!historicalCandles.length) {
+      return isPending ? [] : normalizeCandles(liveCandles).slice(-1000);
+    }
 
-    // Merge backend and frontend data, ensuring no duplicates
-    const merged = [...backendCandles];
-
-    // Add frontend candles that aren't already in backend data
-    frontendCandles.forEach(frontendCandle => {
-      const exists = backendCandles.some(backendCandle => backendCandle.time === frontendCandle.time);
-      if (!exists) {
-        merged.push(frontendCandle);
-      }
-    });
-
-    // Sort by time and limit to last 500 candles for performance
-    return merged
-      .sort((a, b) => a.time - b.time)
-      .slice(-500);
-  }, [backendData, symbol, interval]);
+    return mergeCandlesByTime(historicalCandles, liveCandles);
+  }, [historicalCandles, isPending, liveCandles]);
 
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    candleCountRef.current = allCandles.length;
+  }, [allCandles.length]);
 
-    // Get dynamic tick size based on timeframe
-    const tickSize = getTickSize(interval);
+  useEffect(() => {
+    if (!isError) {
+      lastErrorSignatureRef.current = null;
+      return;
+    }
 
-    // Create chart with theme-aware colors
-    const isDark = theme === 'dark';
+    const message =
+      error instanceof Error ? error.message : "Historical chart data could not be loaded.";
+    if (lastErrorSignatureRef.current === message) {
+      return;
+    }
+
+    lastErrorSignatureRef.current = message;
+    toast.error("Historical chart unavailable", {
+      description:
+        "Live pricing remains active, but recent candlestick history could not be refreshed.",
+    });
+  }, [error, isError]);
+
+  useEffect(() => {
+    if (!chartContainerRef.current) {
+      return;
+    }
+
+    const isDark = theme === "dark";
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { color: isDark ? '#000000' : '#FFFFFF' },
-        textColor: isDark ? '#D1D4DC' : '#191919',
+        background: { color: isDark ? "#020617" : "#FFFFFF" },
+        textColor: isDark ? "#D1D4DC" : "#191919",
       },
       grid: {
-        vertLines: { color: isDark ? '#2B2B43' : '#E6E6E6' },
-        horzLines: { color: isDark ? '#2B2B43' : '#E6E6E6' },
+        vertLines: { color: isDark ? "#1f2937" : "#E5E7EB" },
+        horzLines: { color: isDark ? "#1f2937" : "#E5E7EB" },
       },
       width: chartContainerRef.current.clientWidth,
       height: chartContainerRef.current.clientHeight,
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
-        borderColor: isDark ? '#2B2B43' : '#D1D4DC',
-        timezone: 'Asia/Kolkata',
-        tickMarkFormatter: (time: number, tickMarkType: number, locale: string) => {
+        rightOffset: 2,
+        barSpacing: 7,
+        minBarSpacing: 5,
+        fixLeftEdge: false,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: false,
+        borderColor: isDark ? "#334155" : "#D1D5DB",
+        tickMarkFormatter: (time: number, tickMarkType: number) => {
           const date = new Date(time * 1000);
 
-          // For different tick mark types, show different formats
-          if (tickMarkType === 0) { // Year
-            return date.toLocaleDateString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              year: 'numeric'
-            });
-          } else if (tickMarkType === 1) { // Month
-            return date.toLocaleDateString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              month: 'short',
-              day: 'numeric'
-            });
-          } else if (tickMarkType === 2) { // Day of month
-            return date.toLocaleDateString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              month: 'short',
-              day: 'numeric'
-            });
-          } else { // Time (hours/minutes)
-            return date.toLocaleTimeString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              hour12: false,
-              hour: '2-digit',
-              minute: '2-digit'
+          if (tickMarkType === 0) {
+            return date.toLocaleDateString("en-US", { year: "numeric" });
+          }
+
+          if (tickMarkType === 1 || tickMarkType === 2) {
+            return date.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
             });
           }
+
+          return date.toLocaleTimeString("en-US", {
+            hour12: false,
+            hour: "2-digit",
+            minute: "2-digit",
+          });
         },
       },
       rightPriceScale: {
-        borderColor: isDark ? '#2B2B43' : '#D1D4DC',
+        borderColor: isDark ? "#334155" : "#D1D5DB",
         ticksVisible: true,
-        minimumWidth: 80,
+        minimumWidth: 82,
       },
       crosshair: {
-        mode: 1, // Normal crosshair mode
+        mode: 1,
       },
+    });
+
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: "#22c55e",
+      downColor: "#ef4444",
+      borderUpColor: "#22c55e",
+      borderDownColor: "#ef4444",
+      wickUpColor: "#22c55e",
+      wickDownColor: "#ef4444",
     });
 
     chartRef.current = chart;
-
-    // Add candlestick series with proper colors (green for bullish, red for bearish)
-    const candlestickSeries = chart.addCandlestickSeries({
-      upColor: '#26a69a',        // Green for bullish (close > open)
-      downColor: '#ef5350',      // Red for bearish (close < open)
-      borderUpColor: '#26a69a',  // Green border for bullish
-      borderDownColor: '#ef5350', // Red border for bearish
-      wickUpColor: '#26a69a',    // Green wick for bullish
-      wickDownColor: '#ef5350',  // Red wick for bearish
-    });
-
     candlestickSeriesRef.current = candlestickSeries;
+    visibleBarsRef.current = getVisibleBars(chartContainerRef.current.clientWidth);
 
-    // Load initial data
-    const candles = getCandlesticks(symbol, interval as any);
-    if (candles.length > 0) {
-      candlestickSeries.setData(candles);
-    }
-
-    // Handle resize
     const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-          height: chartContainerRef.current.clientHeight,
+      if (!chartContainerRef.current || !chartRef.current) {
+        return;
+      }
+
+      visibleBarsRef.current = getVisibleBars(chartContainerRef.current.clientWidth);
+      chartRef.current.applyOptions({
+        width: chartContainerRef.current.clientWidth,
+        height: chartContainerRef.current.clientHeight,
+      });
+
+      if (candleCountRef.current > 0) {
+        const visibleBars = Math.min(candleCountRef.current, visibleBarsRef.current);
+        chartRef.current.timeScale().setVisibleLogicalRange({
+          from: Math.max(candleCountRef.current - visibleBars, 0),
+          to: Math.max(candleCountRef.current - 1, 0) + 2,
         });
       }
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
 
-    // Cleanup
     return () => {
-      window.removeEventListener('resize', handleResize);
-      if (chartRef.current) {
-        chartRef.current.remove();
-      }
+      window.removeEventListener("resize", handleResize);
+      chart.remove();
+      chartRef.current = null;
+      candlestickSeriesRef.current = null;
     };
-  }, [symbol, interval, theme]);
+  }, [theme]);
 
-  // Initialize chart with backend data, then update with live frontend data
   useEffect(() => {
-    if (candlestickSeriesRef.current) {
-      // First, load backend historical data
-      if (allCandles.length > 0) {
-        const chartData = allCandles.map(candle => ({
-          time: candle.time,
-          open: candle.open,
-          high: candle.high,
-          low: candle.low,
-          close: candle.close,
-        }));
-        candlestickSeriesRef.current.setData(chartData);
-      }
-
-      // Then, continuously update with live frontend data
-      const updateInterval = setInterval(() => {
-        const frontendCandles = getCandlesticks(symbol, interval as any);
-        if (frontendCandles.length > 0) {
-          candlestickSeriesRef.current.setData(frontendCandles);
-        }
-      }, 1000);
-
-      return () => clearInterval(updateInterval);
+    if (!candlestickSeriesRef.current || !chartRef.current) {
+      return;
     }
-  }, [allCandles, symbol, interval]);
+
+    if (isPending && historicalCandles.length === 0) {
+      candlestickSeriesRef.current.setData([]);
+      return;
+    }
+
+    candlestickSeriesRef.current.setData(toChartCandles(allCandles));
+
+    if (allCandles.length === 0) {
+      return;
+    }
+
+    const visibleBars = Math.min(allCandles.length, visibleBarsRef.current);
+    chartRef.current.timeScale().applyOptions({
+      rightOffset: 2,
+      barSpacing: visibleBarsRef.current <= 70 ? 6 : 7,
+    });
+    chartRef.current.timeScale().setVisibleLogicalRange({
+      from: Math.max(allCandles.length - visibleBars, 0),
+      to: Math.max(allCandles.length - 1, 0) + 2,
+    });
+  }, [allCandles, historicalCandles.length, isPending, symbol, interval]);
+
+  useEffect(() => {
+    if (!candlestickSeriesRef.current || historicalCandles.length === 0) {
+      return;
+    }
+
+    const updateInterval = setInterval(() => {
+      const normalizedInterval = interval as ChartInterval;
+      const latestFrontendCandles = getCandlesticks(symbol, normalizedInterval);
+      const mergedCandles = mergeCandlesByTime(historicalCandles, latestFrontendCandles);
+
+      if (candlestickSeriesRef.current) {
+        candlestickSeriesRef.current.setData(toChartCandles(mergedCandles));
+      }
+    }, 1000);
+
+    return () => clearInterval(updateInterval);
+  }, [historicalCandles, interval, symbol]);
 
   return (
-    <div
-      ref={chartContainerRef}
-      className="w-full h-full"
-    />
+    <div className="relative h-full w-full overflow-hidden rounded-[inherit]">
+      <div ref={chartContainerRef} className="h-full w-full" data-testid="trade-chart" />
+      {isPending && allCandles.length === 0 ? (
+        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+          <div className="rounded-full border border-gray-200 bg-white/92 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-gray-500 shadow-sm dark:border-gray-700 dark:bg-slate-900/92 dark:text-gray-400">
+            Loading historical candles
+          </div>
+        </div>
+      ) : null}
+      {isError ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center">
+          <div
+            data-testid="chart-history-status"
+            className="rounded-full border border-yellow-300 bg-yellow-50/95 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-yellow-900 shadow-sm dark:border-yellow-700 dark:bg-yellow-950/80 dark:text-yellow-100"
+          >
+            Chart history unavailable
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -9,9 +9,29 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
+    "dev:web": "pnpm --filter vite_react_shadcn_ts dev",
+    "dev:api": "pnpm --filter server dev",
+    "dev:ws": "pnpm --filter ws dev",
+    "dev:engine": "pnpm --filter engine dev",
+    "dev:pooler": "pnpm --filter pooler dev",
+    "dev:core": "turbo dev --filter=server --filter=ws --filter=engine --filter=pooler --filter=vite_react_shadcn_ts",
+    "start:web": "pnpm --filter vite_react_shadcn_ts start",
+    "start:api": "pnpm --filter server start",
+    "start:ws": "pnpm --filter ws start",
+    "start:engine": "pnpm --filter engine start",
+    "start:pooler": "pnpm --filter pooler start",
+    "start:core": "pnpm --parallel --filter server --filter ws --filter engine --filter pooler --filter vite_react_shadcn_ts run start",
+    "doctor": "node scripts/doctor.mjs",
+    "preflight:trade": "node scripts/preflight-trading-runtime.mjs",
+    "smoke:trade": "pnpm --filter vite_react_shadcn_ts test:smoke",
+    "verify:trade": "pnpm preflight:trade && pnpm smoke:trade",
+    "db:generate": "pnpm --filter @exness-v3/db db:generate",
+    "db:migrate": "pnpm --filter @exness-v3/db exec prisma migrate deploy",
+    "setup:core": "pnpm db:generate && pnpm db:migrate",
+    "infra:up": "docker compose up -d postgres redis",
+    "infra:down": "docker compose down",
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\""
-    
   },
   "resolutions": {
     "react": "19.1.0",
@@ -23,10 +43,11 @@
     "@workspace/eslint-config": "workspace:*",
     "@workspace/typescript-config": "workspace:*",
     "prettier": "^3.6.2",
+    "tsx": "^4.20.5",
     "turbo": "^2.5.5",
     "typescript": "5.7.3"
   },
-  "packageManager": "bun@1.2.22",
+  "packageManager": "pnpm@9.0.0",
   "engines": {
     "node": ">=20"
   },
@@ -39,7 +60,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongodb": "^7.0.0",
+    "pg": "^8.20.0",
     "styled-components": "^6.1.19",
     "web": "^0.0.2",
     "zod": "^4.1.12"

@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/axios';
 
 interface SignupData {
@@ -12,28 +12,80 @@ interface SigninData {
   password: string;
 }
 
+type AuthResponse = {
+  token?: string;
+  user?: {
+    email?: string;
+    balance?: number;
+  };
+};
+
+function persistSession(email: string, token: string) {
+  localStorage.setItem('token', token);
+  localStorage.setItem('userEmail', email);
+}
+
+export function readStoredSession() {
+  if (typeof window === 'undefined') {
+    return {
+      token: null,
+      userEmail: null,
+      isAuthenticated: false,
+    };
+  }
+
+  const token = localStorage.getItem('token');
+  const userEmail = localStorage.getItem('userEmail');
+
+  return {
+    token,
+    userEmail,
+    isAuthenticated: Boolean(token),
+  };
+}
+
 export function useSignup() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (data: SignupData) => {
       const response = await api.post('/auth/signup', data);
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userEmail', data.email);
+      const payload = response.data as AuthResponse;
+
+      if (payload.token) {
+        persistSession(data.email, payload.token);
       }
-      return response.data;
+
+      if (typeof payload.user?.balance === 'number') {
+        queryClient.setQueryData(['balance', data.email], {
+          balance: payload.user.balance,
+        });
+      }
+
+      return payload;
     },
   });
 }
 
 export function useSignin() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (data: SigninData) => {
       const response = await api.post('/auth/signin', data);
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userEmail', data.email);
+      const payload = response.data as AuthResponse;
+
+      if (payload.token) {
+        persistSession(data.email, payload.token);
       }
-      return response.data;
+
+      if (typeof payload.user?.balance === 'number') {
+        queryClient.setQueryData(['balance', data.email], {
+          balance: payload.user.balance,
+        });
+      }
+
+      return payload;
     },
   });
 }
@@ -47,9 +99,9 @@ export function useLogout() {
 }
 
 export function isAuthenticated() {
-  return !!localStorage.getItem('token');
+  return readStoredSession().isAuthenticated;
 }
 
 export function getUserEmail() {
-  return localStorage.getItem('userEmail');
+  return readStoredSession().userEmail;
 }

@@ -1,15 +1,20 @@
 # engine
 
-To install dependencies:
+This worker consumes Redis stream events, executes trade state changes, and snapshots runtime state to PostgreSQL.
+
+Run from the repository root:
 
 ```bash
-bun install
+pnpm --filter engine dev
 ```
 
-To run:
+Production start:
 
 ```bash
-bun run index.ts
+pnpm --filter engine start
 ```
 
-This project was created using `bun init` in bun v1.2.22. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Required environment:
+
+- `REDIS_URL`
+- `BACKPACK_KLINES_URL`

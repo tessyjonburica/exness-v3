@@ -1,15 +1,19 @@
 # ws
 
-To install dependencies:
+This service fans Redis price updates out to browser WebSocket clients.
+
+Run from the repository root:
 
 ```bash
-bun install
+pnpm --filter ws dev
 ```
 
-To run:
+Production start:
 
 ```bash
-bun run index.ts
+pnpm --filter ws start
 ```
 
-This project was created using `bun init` in bun v1.2.22. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Health check:
+
+- `GET /health`

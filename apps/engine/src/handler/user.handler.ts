@@ -1,6 +1,10 @@
 import { users } from '../../memoryDb';
 import type { User } from '../types';
-import type { UserPayload, UserCreated } from '../types/handler.type';
+import type {
+  UserPayload,
+  UserCreated,
+  UpdateUserBalancePayload,
+} from '../types/handler.type';
 import { sendAcknowledgement } from '../utils/send-ack';
 
 export async function handleGetUserBalance(
@@ -69,6 +73,34 @@ export async function handleUserCreation(
   } catch (err) {
     console.error('[USER] Error creating user:', err);
     await sendAcknowledgement(requestId, 'USER_CREATION_ERROR', {
+      message: err,
+    });
+  }
+}
+
+export async function handleUserBalanceUpdate(
+  payload: UpdateUserBalancePayload,
+  requestId: string
+) {
+  try {
+    const user = users[payload.email];
+
+    if (!user) {
+      await sendAcknowledgement(requestId, 'USER_BALANCE_UPDATE_FAILED', {
+        reason: 'User not found',
+      });
+      return;
+    }
+
+    user.balance.amount = payload.balance;
+
+    await sendAcknowledgement(requestId, 'USER_BALANCE_UPDATED', {
+      status: 'success',
+      balance: user.balance.amount,
+    });
+  } catch (err) {
+    console.error('[USER] Error updating balance:', err);
+    await sendAcknowledgement(requestId, 'USER_BALANCE_UPDATE_ERROR', {
       message: err,
     });
   }

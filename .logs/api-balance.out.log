@@ -1,0 +1,130 @@
+
+> exness-v3@0.0.1 start:api C:\Users\USER\Desktop\exness-v3
+> pnpm --filter server start
+
+
+> server@1.0.0 start C:\Users\USER\Desktop\exness-v3\apps\api
+> tsx src/index.ts
+
+API server started on port 3000
+[signupHandler] Persisting user payload: {
+  email: 'balapi.1779235693601@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:08:14.896Z'
+}
+[BALANCE] Engine balance for balapi.1779235693601@example.com 10000
+[signupHandler] Persisting user payload: {
+  email: 'tradex.smoke.1779235725775@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:08:55.343Z'
+}
+[BALANCE] Engine balance for tradex.smoke.1779235725775@example.com 10000
+[BALANCE] Engine balance for tradex.smoke.1779235725775@example.com 9219.37
+[BALANCE] Engine balance for tradex.smoke.1779235725775@example.com 9219.37
+[BALANCE] Engine balance for tradex.smoke.1779235725775@example.com 8438.84
+[BALANCE] Engine balance for tradex.smoke.1779235725775@example.com 8438.84
+[BALANCE] Engine balance for tradex.smoke.1779235725775@example.com 9219.68
+[BALANCE] Engine balance for tradex.smoke.1779235725775@example.com 9219.68
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779236397147@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:20:14.067Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779236508895@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:22:11.719Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779236624832@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:24:01.062Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779236741611@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:25:58.392Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779236845577@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:27:41.943Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779237039311@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:30:39.611Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779237077695@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:31:18.134Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779237274975@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:34:35.373Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779237310299@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:35:10.564Z'
+}
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779237400644@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:36:41.149Z'
+}
+[BALANCE] Engine balance for balancesync.1779237400644@example.com 10000
+[BALANCE] Engine balance for balancesync.1779237400644@example.com 10000
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779237466604@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:37:52.660Z'
+}
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 10000
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 10000
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 10000
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11500
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11500
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11500
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 10718.8
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 10718.8
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[BALANCE] Engine balance for balancesync.1779237466604@example.com 11499.56
+[signupHandler] Persisting user payload: {
+  email: 'balance.api.1779237522214@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:38:43.953Z'
+}
+[BALANCE] Engine balance for balance.api.1779237522214@example.com 10000
+[signupHandler] Persisting user payload: {
+  email: 'tradex.smoke.1779237545147@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:39:08.501Z'
+}
+[BALANCE] Engine balance for tradex.smoke.1779237545147@example.com 10000
+[BALANCE] Engine balance for tradex.smoke.1779237545147@example.com 9220.63
+[BALANCE] Engine balance for tradex.smoke.1779237545147@example.com 9220.63
+[BALANCE] Engine balance for tradex.smoke.1779237545147@example.com 8441.85
+[BALANCE] Engine balance for tradex.smoke.1779237545147@example.com 8441.85
+[BALANCE] Engine balance for tradex.smoke.1779237545147@example.com 9220.56
+[BALANCE] Engine balance for tradex.smoke.1779237545147@example.com 9220.56
+[signupHandler] Persisting user payload: {
+  email: 'balance.api.1779237574452@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:39:35.200Z'
+}
+[BALANCE] Engine balance for balance.api.1779237574452@example.com 10000
+[signupHandler] Persisting user payload: {
+  email: 'balancesync.1779237632464@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-20T00:40:32.773Z'
+}

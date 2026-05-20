@@ -1,0 +1,161 @@
+
+> exness-v3@0.0.1 start:engine C:\Users\USER\Desktop\exness-v3
+> pnpm --filter engine start
+
+
+> engine@ start C:\Users\USER\Desktop\exness-v3\apps\engine
+> tsx index.ts
+
+Consumer group exists
+Restored engine snapshot from PostgreSQL
+Engine connected to Redis and PostgreSQL
+[USER] User already exists: balapi.1779235693601@example.com
+[ENGINE BALANCE] User: balapi.1779235693601@example.com balance: 10000
+[ENGINE BALANCE] User: tradex.smoke.1779235725775@example.com balance: 10000
+[USER] User already exists: tradex.smoke.1779235725775@example.com
+[ENGINE BALANCE] User: tradex.smoke.1779235725775@example.com balance: 9219.37
+[ENGINE BALANCE] User: tradex.smoke.1779235725775@example.com balance: 9219.37
+[USER] User already exists: tradex.smoke.1779235725775@example.com
+[ENGINE BALANCE] User: tradex.smoke.1779235725775@example.com balance: 8438.84
+[ENGINE BALANCE] User: tradex.smoke.1779235725775@example.com balance: 8438.84
+[handleCloseTrade] Persisting close payload: {
+  userId: '35ebea32-1717-46e6-876b-af2d41cd25c1',
+  email: 'tradex.smoke.1779235725775@example.com',
+  newBalance: 9219.68,
+  closedTradePayload: {
+    userId: '35ebea32-1717-46e6-876b-af2d41cd25c1',
+    asset: 'BTC_USDC',
+    openPrice: 78063.48,
+    closePrice: 78084.19,
+    leverage: 1,
+    pnl: 0.21,
+    liquidated: false,
+    createdAt: '2026-05-20T00:09:05.924Z',
+    slippage: 0.05,
+    side: 'LONG',
+    reason: 'Closed by user',
+    quantity: 0.01
+  },
+  tradePnlTransactionPayload: {
+    userId: '35ebea32-1717-46e6-876b-af2d41cd25c1',
+    type: 'TRADE_PNL',
+    status: 'COMPLETED',
+    amount: 0.21,
+    currency: 'USD',
+    reference: 'PNL-b4b8f7df-2010-43b5-b622-4a449462bf00',
+    description: 'BTC/USDC LONG position closed (Closed by user).',
+    method: 'Trading ledger',
+    provider: 'Internal Matching Engine',
+    accountLabel: 'Primary trading account',
+    metadata: { asset: 'BTC_USDC', side: 'LONG', reason: 'Closed by user' }
+  }
+}
+Successfully closed trade b4b8f7df-2010-43b5-b622-4a449462bf00. PnL: 0.21
+User balance after close: 9219.68
+[ENGINE BALANCE] User: tradex.smoke.1779235725775@example.com balance: 9219.68
+[ENGINE BALANCE] User: tradex.smoke.1779235725775@example.com balance: 9219.68
+[USER] User already exists: balancesync.1779236845577@example.com
+[USER] User already exists: balancesync.1779236845577@example.com
+[ENGINE BALANCE] User: balancesync.1779237400644@example.com balance: 10000
+[ENGINE BALANCE] User: balancesync.1779237400644@example.com balance: 10000
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 10000
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 10000
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 10000
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11500
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11500
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11500
+[USER] User already exists: balancesync.1779237466604@example.com
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 10718.8
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 10718.8
+[handleCloseTrade] Persisting close payload: {
+  userId: '931e4fcd-5089-4e57-acb7-39f4f6033b47',
+  email: 'balancesync.1779237466604@example.com',
+  newBalance: 11499.56,
+  closedTradePayload: {
+    userId: '931e4fcd-5089-4e57-acb7-39f4f6033b47',
+    asset: 'BTC_USDC',
+    openPrice: 78119.61,
+    closePrice: 78075.7,
+    leverage: 1,
+    pnl: -0.44,
+    liquidated: false,
+    createdAt: '2026-05-20T00:37:59.720Z',
+    slippage: 0.05,
+    side: 'LONG',
+    reason: 'Closed by user',
+    quantity: 0.01
+  },
+  tradePnlTransactionPayload: {
+    userId: '931e4fcd-5089-4e57-acb7-39f4f6033b47',
+    type: 'TRADE_PNL',
+    status: 'COMPLETED',
+    amount: -0.44,
+    currency: 'USD',
+    reference: 'PNL-2ef9043a-b060-4fdb-92ec-b46bc87030a1',
+    description: 'BTC/USDC LONG position closed (Closed by user).',
+    method: 'Trading ledger',
+    provider: 'Internal Matching Engine',
+    accountLabel: 'Primary trading account',
+    metadata: { asset: 'BTC_USDC', side: 'LONG', reason: 'Closed by user' }
+  }
+}
+Successfully closed trade 2ef9043a-b060-4fdb-92ec-b46bc87030a1. PnL: -0.44
+User balance after close: 11499.56
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[USER] User already exists: balancesync.1779237466604@example.com
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[USER] User already exists: balancesync.1779237466604@example.com
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[ENGINE BALANCE] User: balancesync.1779237466604@example.com balance: 11499.56
+[USER] User already exists: balance.api.1779237522214@example.com
+[ENGINE BALANCE] User: balance.api.1779237522214@example.com balance: 10000
+[ENGINE BALANCE] User: tradex.smoke.1779237545147@example.com balance: 10000
+[USER] User already exists: tradex.smoke.1779237545147@example.com
+[ENGINE BALANCE] User: tradex.smoke.1779237545147@example.com balance: 9220.63
+[ENGINE BALANCE] User: tradex.smoke.1779237545147@example.com balance: 9220.63
+[USER] User already exists: tradex.smoke.1779237545147@example.com
+[ENGINE BALANCE] User: tradex.smoke.1779237545147@example.com balance: 8441.85
+[ENGINE BALANCE] User: tradex.smoke.1779237545147@example.com balance: 8441.85
+[handleCloseTrade] Persisting close payload: {
+  userId: 'eec985a5-0a76-4838-9c36-da91f1f2ad0d',
+  email: 'tradex.smoke.1779237545147@example.com',
+  newBalance: 9220.56,
+  closedTradePayload: {
+    userId: 'eec985a5-0a76-4838-9c36-da91f1f2ad0d',
+    asset: 'BTC_USDC',
+    openPrice: 77936.84,
+    closePrice: 77870.54,
+    leverage: 1,
+    pnl: -0.66,
+    liquidated: false,
+    createdAt: '2026-05-20T00:39:14.031Z',
+    slippage: 0.05,
+    side: 'LONG',
+    reason: 'Closed by user',
+    quantity: 0.01
+  },
+  tradePnlTransactionPayload: {
+    userId: 'eec985a5-0a76-4838-9c36-da91f1f2ad0d',
+    type: 'TRADE_PNL',
+    status: 'COMPLETED',
+    amount: -0.66,
+    currency: 'USD',
+    reference: 'PNL-17f59501-5420-47c6-920e-9d8720047508',
+    description: 'BTC/USDC LONG position closed (Closed by user).',
+    method: 'Trading ledger',
+    provider: 'Internal Matching Engine',
+    accountLabel: 'Primary trading account',
+    metadata: { asset: 'BTC_USDC', side: 'LONG', reason: 'Closed by user' }
+  }
+}
+Successfully closed trade 17f59501-5420-47c6-920e-9d8720047508. PnL: -0.66
+User balance after close: 9220.56
+[ENGINE BALANCE] User: tradex.smoke.1779237545147@example.com balance: 9220.56
+[ENGINE BALANCE] User: tradex.smoke.1779237545147@example.com balance: 9220.56
+[USER] User already exists: balance.api.1779237574452@example.com
+[ENGINE BALANCE] User: balance.api.1779237574452@example.com balance: 10000

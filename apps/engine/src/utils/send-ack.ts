@@ -1,8 +1,23 @@
 import { enginePusher } from '@exness-v3/redis/streams';
 
-(async () => {
-  await enginePusher.connect();
-})();
+let enginePusherConnectionPromise: Promise<void> | null = null;
+
+async function ensureEnginePusherConnected() {
+  if (enginePusher.isOpen) {
+    return;
+  }
+
+  if (!enginePusherConnectionPromise) {
+    enginePusherConnectionPromise = enginePusher
+      .connect()
+      .then(() => undefined)
+      .finally(() => {
+        enginePusherConnectionPromise = null;
+      });
+  }
+
+  await enginePusherConnectionPromise;
+}
 
 export const ACKNOWLEDGEMENT_STREAM = 'stream:engine:acknowledgement';
 
@@ -12,6 +27,8 @@ export async function sendAcknowledgement(
   payload: Record<string, any> = {}
 ) {
   try {
+    await ensureEnginePusherConnected();
+
     const message = {
       payload: JSON.stringify({
         ...payload,
@@ -19,7 +36,7 @@ export async function sendAcknowledgement(
       type,
       requestId,
     };
-    console.log('message', message);
+
     await enginePusher.xAdd(ACKNOWLEDGEMENT_STREAM, '*', message);
   } catch (err) {
     console.error(

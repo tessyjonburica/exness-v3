@@ -4,6 +4,12 @@ export interface UserCreated {
   email: string;
   id: string;
   balance: number;
+  password?: string;
+}
+
+export interface UpdateUserBalancePayload {
+  email: string;
+  balance: number;
 }
 
 export interface CloseOrderPayload {
@@ -28,4 +34,5 @@ export interface FetchOpenOrdersPayload {
 export interface FetchCandlesticksPayload {
   symbol: string;
   timeframe: string;
+  limit?: number;
 }

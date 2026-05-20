@@ -4,11 +4,17 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run --watch index.ts",
-    "start": "bun run index.ts"
+    "dev": "tsx watch index.ts",
+    "start": "tsx index.ts"
+  },
+  "dependencies": {
+    "@exness-v3/db": "workspace:*",
+    "@exness-v3/redis": "workspace:*",
+    "dotenv": "^16.4.7"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "tsx": "^4.20.5"
   },
   "peerDependencies": {
     "typescript": "^5"

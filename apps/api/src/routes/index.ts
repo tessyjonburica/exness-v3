@@ -1,12 +1,14 @@
-import express from 'express';
-import authRouter from './auth.route.js';
-import tradeRouter from './trade.route.js';
-import balanceRouter from './balance.route.js';
+import express, { Router } from 'express';
+import authRouter from './auth.route';
+import tradeRouter from './trade.route';
+import balanceRouter from './balance.route';
+import fundingRouter from './funding.route';
 
-const mainRouter = express();
+const mainRouter: Router = express.Router();
 
 mainRouter.use('/auth', authRouter);
 mainRouter.use('/trade', tradeRouter);
 mainRouter.use('/balance', balanceRouter);
+mainRouter.use('/', fundingRouter);
 
 export default mainRouter;

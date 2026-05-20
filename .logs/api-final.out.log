@@ -1,0 +1,26 @@
+
+> exness-v3@0.0.1 start:api C:\Users\USER\Desktop\exness-v3
+> pnpm --filter server start
+
+
+> server@1.0.0 start C:\Users\USER\Desktop\exness-v3\apps\api
+> tsx src/index.ts
+
+API server started on port 3000
+[signupHandler] Persisting user payload: {
+  email: 'tradex.smoke.1779235024532@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-19T23:57:11.378Z'
+}
+[BALANCE] Engine balance for tradex.smoke.1779235024532@example.com 10000
+[BALANCE] Engine balance for tradex.smoke.1779235024532@example.com 10000
+[BALANCE] Engine balance for tradex.smoke.1779235024532@example.com 10000
+[signupHandler] Persisting user payload: {
+  email: 'balcheck.1779235074624@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-19T23:57:55.418Z'
+}
+[BALANCE] Engine balance for balcheck.1779235074624@example.com 10000
+C:\Users\USER\Desktop\exness-v3\apps\api:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  server@1.0.0 start: `tsx src/index.ts`
+Exit status 4294967295

@@ -3,9 +3,14 @@ export interface EngineMessage {
     requestId: string;
     payload: string;
 };
-  
+
+export interface StreamEntry {
+    id: string;
+    message: EngineMessage;
+}
+
 export interface StreamResponse {
-    messages: Array<{ message: EngineMessage }>;
+    messages: StreamEntry[];
 };
   
 export type CallbackEntry<T = unknown> = {

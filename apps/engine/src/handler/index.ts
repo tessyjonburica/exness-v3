@@ -5,7 +5,11 @@ import {
   handleFetchOpenOrders,
   handleFetchCandlesticks,
 } from './order.handler';
-import { handleGetUserBalance, handleUserCreation } from './user.handler';
+import {
+  handleGetUserBalance,
+  handleUserBalanceUpdate,
+  handleUserCreation,
+} from './user.handler';
 
 export async function processMessage(message: any) {
   const requestId = message.message.requestId;
@@ -16,6 +20,9 @@ export async function processMessage(message: any) {
       case 'USER_CREATED':
         await handleUserCreation(payload, requestId);
         break;
+      case 'UPDATE_USER_BALANCE':
+        await handleUserBalanceUpdate(payload, requestId);
+        break;
       case 'CREATE_ORDER':
         await handleOpenTrade(payload, requestId);
         break;
@@ -23,16 +30,18 @@ export async function processMessage(message: any) {
         await handleCloseTrade(payload, requestId);
         break;
       case 'PRICE_UPDATE':
-        // Only process if data exists, is a string, and is not "undefined"
-        if (!payload.data || typeof payload.data !== 'string' || payload.data === 'undefined') {
-          break;
-        }
-
-        // Parse the nested data string safely
         try {
-          const priceData = JSON.parse(payload.data);
+          const priceData =
+            payload && typeof payload === 'object' && 'data' in payload && typeof payload.data === 'string'
+              ? JSON.parse(payload.data)
+              : payload;
+
+          if (!priceData || typeof priceData !== 'object') {
+            break;
+          }
+
           await handlePriceUpdateEntry(priceData);
-        } catch (error) {
+        } catch {
           // Silently ignore parsing errors - some messages may be malformed
         }
         break;

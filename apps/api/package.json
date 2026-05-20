@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/src/index.js",
+    "build": "tsc --noEmit",
+    "start": "tsx src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -24,8 +24,8 @@
     "typescript": "^5.9.2"
   },
   "dependencies": {
-    "@prisma/client": "^7.0.0",
-    "@prisma/extension-accelerate": "^2.0.2",
+    "@exness-v3/db": "workspace:*",
+    "@exness-v3/redis": "workspace:*",
     "@types/bcrypt": "^6.0.0",
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",

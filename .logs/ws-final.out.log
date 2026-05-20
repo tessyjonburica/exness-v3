@@ -1,0 +1,22 @@
+
+> exness-v3@0.0.1 start:ws C:\Users\USER\Desktop\exness-v3
+> pnpm --filter ws start
+
+
+> ws@ start C:\Users\USER\Desktop\exness-v3\apps\ws
+> tsx src/index.ts
+
+WebSocket server is listening on port 8080
+Connected to Redis subscriber
+Connected to Redis cache client
+Subscribed to Redis channel: 'ws:price:update'
+Broadcasted first Redis price update to connected clients
+Client connected
+Client disconnected
+Client connected
+Client disconnected
+Client connected
+Client disconnected
+C:\Users\USER\Desktop\exness-v3\apps\ws:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  ws@ start: `tsx src/index.ts`
+Exit status 4294967295

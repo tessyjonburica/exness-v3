@@ -72,8 +72,8 @@ export function updateCandlestick(
     };
     candles.push(newCandle);
 
-    // Keep only last 1000 candles to avoid memory issues
-    if (candles.length > 1000) {
+    // Keep enough recent history for dense chart views without unbounded growth
+    if (candles.length > 2000) {
       candles.shift();
     }
   } else if (lastCandle.time === candleTimeSec) {

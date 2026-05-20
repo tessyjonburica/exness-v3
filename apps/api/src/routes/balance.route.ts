@@ -1,8 +1,8 @@
-import express from 'express';
-import { getUserBalance } from '../controller/user.controller.js';
-import { authMiddleware } from '../middleware/auth.middleware.js';
+import express, { Router } from 'express';
+import { getUserBalance } from '../controller/user.controller';
+import { authMiddleware } from '../middleware/auth.middleware';
 
-const balanceRouter = express();
+const balanceRouter: Router = express.Router();
 
 balanceRouter.get('/me', authMiddleware, getUserBalance);
 

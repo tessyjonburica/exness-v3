@@ -1,15 +1,21 @@
 # pooler
 
-To install dependencies:
+This worker subscribes to Backpack market data and publishes normalized quotes into Redis.
+
+Run from the repository root:
 
 ```bash
-bun install
+pnpm --filter pooler dev
 ```
 
-To run:
+Production start:
 
 ```bash
-bun run index.ts
+pnpm --filter pooler start
 ```
 
-This project was created using `bun init` in bun v1.2.22. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Required environment:
+
+- `REDIS_URL`
+- `BACKPACK_WS_URL`
+- `ENABLE_DEV_QUOTES`

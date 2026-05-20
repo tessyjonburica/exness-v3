@@ -1,52 +1,38 @@
+import './load-env';
 import { enginePuller } from '@exness-v3/redis/streams';
 import { processMessage } from './src/handler';
-import { prices, users } from './memoryDb';
-import { mongodb } from './src/utils/dbClient';
+import { restoreEngineSnapshot, saveEngineSnapshot } from './src/utils/snapshot';
 
 const STREAM_KEY = 'stream:engine';
 const GROUP_NAME = 'group';
 const CONSUMER_NAME = 'consumer-1';
-const SNAPSHOT_INTERVAL = 15_000; // 10s
+const SNAPSHOT_INTERVAL = 15_000;
+const READ_BATCH_SIZE = 100;
 
 let lastSnapshotAt: number;
 let lastItemReadId = '';
 
 async function restoreSnapshot() {
-  const collection = mongodb.collection('engine-snapshots');
-  const result = await collection.findOne({ id: 'dump' });
-
-  if (result) {
-    Object.assign(prices, result.data.prices);
-    Object.assign(users, result.data.users);
-    lastSnapshotAt = result.data.lastSnapshotAt;
-    lastItemReadId = result.data.lastItemReadId;
-    console.log('Restored snapshot from DB');
-  } else {
-    console.log('No snapshot found, starting fresh');
+  const state = await restoreEngineSnapshot();
+  if (!state) {
+    console.log('No engine snapshot found, starting fresh');
     lastSnapshotAt = Date.now();
+    return;
   }
+
+  lastSnapshotAt = state.lastSnapshotAt;
+  lastItemReadId = state.lastItemReadId;
+  console.log('Restored engine snapshot from PostgreSQL');
 }
 
 async function saveSnapshot() {
   const now = Date.now();
   if (now - lastSnapshotAt < SNAPSHOT_INTERVAL) return;
 
-  const collection = mongodb.collection('engine-snapshots');
-  const snapshot = {
-    id: 'dump',
-    data: {
-      prices,
-      users,
-      lastSnapshotAt: now,
-      lastItemReadId,
-    },
-  };
-
-  await collection.updateOne(
-    { id: 'dump' },
-    { $set: snapshot },
-    { upsert: true }
-  );
+  await saveEngineSnapshot({
+    lastSnapshotAt: now,
+    lastItemReadId,
+  });
   lastSnapshotAt = now;
 }
 
@@ -62,9 +48,10 @@ async function startEngine() {
   }
 
   await restoreSnapshot();
+  console.log('Engine connected to Redis and PostgreSQL');
 
   const groups = await enginePuller.xInfoGroups(STREAM_KEY);
-  const lastDeliveredId = groups[0]?.['last-delivered-id']?.toString();
+  const lastDeliveredId = groups[0]?.lastDeliveredId?.toString();
 
   if (
     lastDeliveredId &&
@@ -75,24 +62,39 @@ async function startEngine() {
   }
 
   while (true) {
-    if (lastItemReadId) {
-      await enginePuller.xAck(STREAM_KEY, GROUP_NAME, lastItemReadId);
-    }
-
     try {
       const response = (await enginePuller.xReadGroup(
         GROUP_NAME,
         CONSUMER_NAME,
         { key: STREAM_KEY, id: '>' },
-        { COUNT: 1 }
+        { COUNT: READ_BATCH_SIZE }
       )) as any[];
 
       if (response) {
-        const msg = response[0].messages[0];
-        lastItemReadId = msg.id;
+        const messages = response[0]?.messages ?? [];
+        const latestPriceUpdate = [...messages]
+          .reverse()
+          .find((entry) => entry?.message?.type === 'PRICE_UPDATE');
 
-        console.log('message', msg.message);
-        await processMessage(msg);
+        if (latestPriceUpdate) {
+          await processMessage(latestPriceUpdate);
+        }
+
+        for (const msg of messages) {
+          lastItemReadId = msg.id;
+
+          if (msg?.message?.type === 'PRICE_UPDATE') {
+            continue;
+          }
+
+          await processMessage(msg);
+        }
+
+        for (const msg of messages) {
+          await enginePuller.xAck(STREAM_KEY, GROUP_NAME, msg.id);
+          lastItemReadId = msg.id;
+        }
+
         await saveSnapshot();
       } else {
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -110,9 +112,9 @@ async function replay(fromId: string, toId: string) {
 
   for (const entry of missed) {
     try {
-      const msg = entry.message;
-      // to be fixed: dont' send acknolwedgmenet here
-      // await processMessage(msg);
+      if (entry?.message?.type) {
+        await processMessage(entry as Parameters<typeof processMessage>[0]);
+      }
 
       lastItemReadId = entry.id;
     } catch (err) {
@@ -121,4 +123,7 @@ async function replay(fromId: string, toId: string) {
   }
 }
 
-startEngine();
+startEngine().catch((error) => {
+  console.error('Engine failed to start:', error);
+  process.exit(1);
+});

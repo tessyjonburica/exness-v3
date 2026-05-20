@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { setSymbolPrice } from '@/lib/price-store';
+import { useEffect, useRef } from "react";
+import { MARKET_BY_PAIR } from "@/components/trading/constants";
+import { setSymbolPrice } from "@/lib/price-store";
+import { WS_BASE_URL } from "@/lib/runtime-config";
 
 export interface TradeMessage {
-  type: 'ASK' | 'BID';
+  type: "ASK" | "BID";
   symbol: string;
   price: number;
   originalPrice: number;
@@ -10,47 +12,57 @@ export interface TradeMessage {
   time: number;
 }
 
-// Keep a shared connection outside the hook
-let ws: WebSocket | null = null;
-let listeners: ((msg: TradeMessage) => void)[] = [];
-let reconnectTimeout: NodeJS.Timeout | null = null;
-let closeTimeout: NodeJS.Timeout | null = null;
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080';
+export type WebSocketFeedStatus = "connecting" | "connected" | "active" | "disconnected";
 
-export function useWebSocket(onMessage: (msg: TradeMessage) => void) {
-  // Store the latest callback in a ref to avoid reconnections
+let ws: WebSocket | null = null;
+let listeners: Array<(msg: TradeMessage) => void> = [];
+let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+const WS_URL = WS_BASE_URL;
+
+export function useWebSocket(
+  onMessage: (msg: TradeMessage) => void,
+  onStatusChange?: (status: WebSocketFeedStatus) => void
+) {
   const callbackRef = useRef(onMessage);
+  const statusRef = useRef(onStatusChange);
 
   useEffect(() => {
     callbackRef.current = onMessage;
   }, [onMessage]);
 
   useEffect(() => {
-    // Wrapper function that calls the latest callback
+    statusRef.current = onStatusChange;
+  }, [onStatusChange]);
+
+  useEffect(() => {
     const stableCallback = (msg: TradeMessage) => {
       callbackRef.current(msg);
     };
 
-    // Function to create/reconnect WebSocket
     const connectWebSocket = () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        return; // Already connected
+        return;
       }
 
-        ws = new WebSocket(WS_URL);
+      statusRef.current?.("connecting");
+      ws = new WebSocket(WS_URL);
 
       ws.onopen = () => {
+        statusRef.current?.("connected");
       };
 
       ws.onmessage = (event) => {
         try {
-          const parsed = JSON.parse(event.data);
+          const parsed = JSON.parse(event.data) as unknown;
 
-          // Handle aggregated PRICE_UPDATE payloads from ws service
           if (
             parsed &&
-            parsed.type === 'PRICE_UPDATE' &&
-            typeof parsed.data === 'string'
+            typeof parsed === "object" &&
+            "type" in parsed &&
+            parsed.type === "PRICE_UPDATE" &&
+            "data" in parsed &&
+            typeof parsed.data === "string"
           ) {
             const priceMap = JSON.parse(parsed.data) as Record<
               string,
@@ -59,60 +71,64 @@ export function useWebSocket(onMessage: (msg: TradeMessage) => void) {
 
             const now = Date.now();
 
-            Object.entries(priceMap).forEach(([pair, p]) => {
-              const scale = Math.pow(10, p.decimal || 0);
-              const ask = p.buyPrice / scale; // Price to buy at
-              const bid = p.sellPrice / scale; // Price to sell at
-
+            Object.entries(priceMap).forEach(([pair, price]) => {
+              const scale = Math.pow(10, price.decimal || 0);
+              const ask = price.buyPrice / scale;
+              const bid = price.sellPrice / scale;
               const symbol = mapPairToUiSymbol(pair);
 
-              // Update shared price store
               setSymbolPrice(symbol, { ask, bid, time: now });
 
-              const askMsg: TradeMessage = {
-                type: 'ASK',
-                symbol,
-                price: ask,
-                originalPrice: ask,
-                quantity: 0,
-                time: now,
-              };
-              const bidMsg: TradeMessage = {
-                type: 'BID',
-                symbol,
-                price: bid,
-                originalPrice: bid,
-                quantity: 0,
-                time: now,
-              };
+              listeners.forEach((listener) =>
+                listener({
+                  type: "ASK",
+                  symbol,
+                  price: ask,
+                  originalPrice: ask,
+                  quantity: 0,
+                  time: now,
+                })
+              );
 
-              listeners.forEach((cb) => cb(askMsg));
-              listeners.forEach((cb) => cb(bidMsg));
+              listeners.forEach((listener) =>
+                listener({
+                  type: "BID",
+                  symbol,
+                  price: bid,
+                  originalPrice: bid,
+                  quantity: 0,
+                  time: now,
+                })
+              );
             });
 
+            statusRef.current?.("active");
             return;
           }
 
-          // Fallback for legacy single-tick messages
-          if (parsed && parsed.type && parsed.symbol && parsed.price) {
-            listeners.forEach((cb) => cb(parsed as TradeMessage));
-            return;
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            "type" in parsed &&
+            "symbol" in parsed &&
+            "price" in parsed
+          ) {
+            statusRef.current?.("active");
+            listeners.forEach((listener) => listener(parsed as TradeMessage));
           }
-        } catch (err) {
-          console.error('WS parse error:', err);
+        } catch {
+          return;
         }
-      };
-
-      ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
       };
 
       ws.onclose = () => {
         ws = null;
+        statusRef.current?.("disconnected");
 
-        // Don't clear listeners - they're still mounted!
-        // Auto-reconnect after 3 seconds if there are still listeners
-        if (reconnectTimeout) clearTimeout(reconnectTimeout);
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+        }
+
         reconnectTimeout = setTimeout(() => {
           if (listeners.length > 0 && !ws) {
             connectWebSocket();
@@ -121,55 +137,49 @@ export function useWebSocket(onMessage: (msg: TradeMessage) => void) {
       };
     };
 
-    // Handle page visibility changes (laptop sleep/wake)
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        // Page became visible - reconnect if needed
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-          connectWebSocket();
-        }
+      if (!document.hidden && (!ws || ws.readyState !== WebSocket.OPEN)) {
+        connectWebSocket();
       }
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Initial connection
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     connectWebSocket();
 
-    // Cancel any pending close timeout since we have an active listener
     if (closeTimeout) {
       clearTimeout(closeTimeout);
       closeTimeout = null;
     }
 
-    // Register listener for this hook call
     listeners.push(stableCallback);
 
-    // Cleanup when component unmounts
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      listeners = listeners.filter((cb) => cb !== stableCallback);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      listeners = listeners.filter((listener) => listener !== stableCallback);
 
-      // If no more listeners, schedule socket close after a delay
-      // This prevents rapid close/reconnect cycles during component remounts
       if (listeners.length === 0 && ws) {
-        if (closeTimeout) clearTimeout(closeTimeout);
+        if (closeTimeout) {
+          clearTimeout(closeTimeout);
+        }
+
         closeTimeout = setTimeout(() => {
-          // Double-check there are still no listeners
           if (listeners.length === 0 && ws) {
             ws.close();
             ws = null;
           }
-        }, 1000); // Wait 1 second before closing
+        }, 1000);
       }
     };
   }, []);
 }
 
 function mapPairToUiSymbol(pair: string): string {
-  // Example inputs: BTC_USDC, ETH_USDC, SOL_USDC
-  // UI expects: BTCUSDT, ETHUSDT, SOLUSDT (for Binance compatibility)
-  const compact = pair.replace('_', '');
-  if (compact.endsWith('USDC')) return compact.replace('USDC', 'USDT');
+  const market = MARKET_BY_PAIR[pair];
+  if (market) {
+    return market.wsSymbol;
+  }
+
+  const compact = pair.replace("_", "");
+  if (compact.endsWith("USDC")) return compact.replace("USDC", "USDT");
   return compact;
 }

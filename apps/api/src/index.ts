@@ -1,22 +1,17 @@
-import 'dotenv/config';
+import './load-env';
 import express from 'express';
 import cors from 'cors';
-import mainRouter from './routes/index.js';
+import mainRouter from './routes/index';
 import cookieParser from 'cookie-parser';
 import { httpPusher } from '@exness-v3/redis/streams';
-
-const PORT = process.env.PORT;
+import { env } from './env';
 
 const app = express();
 
-const ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "https://exness-v3-web.vercel.app",
-  "https://tradex.foo",
-  "https://www.tradex.foo",
-  "http://192.168.0.116:3000",
-  "http://64.227.182.171"
-];
+const ALLOWED_ORIGINS = (env.CORS_ORIGINS ?? "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 await httpPusher.connect();
 
@@ -29,8 +24,15 @@ app.use(cors({
 
 app.use(cookieParser());
 
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: 'api',
+  });
+});
+
 app.use('/api/v1', mainRouter);
 
-app.listen(PORT, () => {
-  console.log('Server started on PORT: 3000',);
+app.listen(env.PORT, () => {
+  console.log(`API server started on port ${env.PORT}`);
 });

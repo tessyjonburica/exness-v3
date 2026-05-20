@@ -1,0 +1,14 @@
+
+> exness-v3@0.0.1 start:api C:\Users\USER\Desktop\exness-v3
+> pnpm --filter server start
+
+
+> server@1.0.0 start C:\Users\USER\Desktop\exness-v3\apps\api
+> tsx src/index.ts
+
+API server started on port 3000
+[signupHandler] Persisting user payload: {
+  email: 'chartcheck.1779233583300@example.com',
+  balance: 10000,
+  lastLoggedIn: '2026-05-19T23:33:04.035Z'
+}

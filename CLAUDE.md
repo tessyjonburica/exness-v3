@@ -20,7 +20,7 @@ Start PostgreSQL and Redis (required before running any app):
 ```bash
 docker compose up -d
 ```
-MongoDB is **not** in the docker-compose file — it must be set up separately (used by the engine for snapshots).
+PostgreSQL and Redis are the only required local infrastructure services for the trading stack.
 
 ### Database Commands (from packages/db)
 - `cd packages/db && bunx prisma generate` - Generate Prisma Client
@@ -198,7 +198,7 @@ bun run lint       # Run ESLint
 6. API queries open orders from engine via Redis Stream
 
 **Snapshot/Restore:**
-- Engine snapshots `prices` and `users` to MongoDB every 15s
+- Engine snapshots `prices` and `users` to PostgreSQL every 15s
 - On restart, restores last snapshot
 - Replays missed messages from Redis Stream using consumer group offset
 - See `apps/engine/index.ts:restoreSnapshot()` and `replay()`
@@ -223,12 +223,8 @@ bun run lint       # Run ESLint
 
 ### Environment Variables
 
-All apps require environment variables. See `.env.example` files in each app directory:
-- `apps/api/.env` - DATABASE_URL, JWT_SECRET, REDIS_HOST, REDIS_PORT
-- `apps/web/.env` - VITE_API_URL, VITE_WS_URL
-- `apps/engine/.env` - REDIS_HOST, REDIS_PORT, MONGODB_URI
-- `apps/pooler/.env` - REDIS_HOST, REDIS_PORT
-- `apps/ws/.env` - WS_PORT, REDIS_HOST, REDIS_PORT
+Core web/API/engine/ws/pooler/db flows use the workspace root `.env` file as the single source of truth.
+- `.env` - DATABASE_URL, REDIS_URL, JWT_SECRET, PORT, WS_PORT, VITE_API_URL, VITE_WS_URL, feed config
 - `apps/mobile/.env` - EXPO_PUBLIC_API_URL, EXPO_PUBLIC_WS_URL
 
 ## Notes

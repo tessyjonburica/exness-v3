@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { getUserBalanceFromEngine } from '../services/engine.service.js';
+import { getUserBalanceFromEngine } from '../services/engine.service';
 import dbClient from '@exness-v3/db';
 
 export async function getUserBalance(req: Request, res: Response) {

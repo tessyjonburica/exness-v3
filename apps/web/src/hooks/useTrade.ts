@@ -1,9 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import api from '@/lib/axios';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/axios";
+import { getApiStatus } from "@/lib/api-errors";
+import { readStoredSession } from "@/hooks/useAuth";
 
 interface CreateOrderData {
   asset: string;
-  side: 'LONG' | 'SHORT';
+  side: "LONG" | "SHORT";
   quantity: number;
   leverage: number;
   tradeOpeningPrice: number;
@@ -16,17 +18,48 @@ interface CloseOrderData {
   orderId: string;
 }
 
+interface MockFundingData {
+  amount: number;
+  currency?: string;
+  method?: string;
+  accountLabel?: string;
+  description?: string;
+}
+
+export interface TransactionRecord {
+  id: string;
+  type: "DEPOSIT" | "WITHDRAWAL" | "TRADE_PNL" | "ADJUSTMENT";
+  status: "PENDING" | "COMPLETED" | "FAILED" | "CANCELLED";
+  amount: number;
+  currency: string;
+  reference: string;
+  description: string;
+  method?: string | null;
+  provider?: string | null;
+  accountLabel?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function useCreateOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (data: CreateOrderData) => {
-      const response = await api.post('/trade/create-order', data);
+      const response = await api.post("/trade/create-order", data);
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['openOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['balance'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["openOrders"] }),
+        queryClient.invalidateQueries({ queryKey: ["balance"] }),
+      ]);
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["openOrders"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
+      ]);
     },
   });
 }
@@ -36,76 +69,145 @@ export function useCloseOrder() {
 
   return useMutation({
     mutationFn: async (data: CloseOrderData) => {
-      const response = await api.post('/trade/close-order', data);
+      const response = await api.post("/trade/close-order", data);
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['openOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['closedOrders'] });
-      queryClient.invalidateQueries({ queryKey: ['balance'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["openOrders"] }),
+        queryClient.invalidateQueries({ queryKey: ["closedOrders"] }),
+        queryClient.invalidateQueries({ queryKey: ["balance"] }),
+      ]);
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["openOrders"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["closedOrders"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
+      ]);
     },
   });
 }
 
 export function useOpenOrders() {
+  const { token, userEmail } = readStoredSession();
+
   return useQuery({
-    queryKey: ['openOrders'],
+    queryKey: ["openOrders", userEmail],
     queryFn: async () => {
-      try {
-        const response = await api.get('/trade/get-open-orders');
-        return response.data;
-      } catch (error) {
-        console.error('Failed to fetch open orders:', error);
-        return { orders: [] }; // Return empty orders on error
-      }
+      const response = await api.get("/trade/get-open-orders");
+      return response.data;
     },
-    refetchInterval: 3000, // Refetch every 3 seconds
-    retry: 1, // Only retry once
+    enabled: Boolean(token),
+    refetchInterval: 3000,
+    retry: 1,
   });
 }
 
 export function useClosedOrders() {
+  const { token, userEmail } = readStoredSession();
+
   return useQuery({
-    queryKey: ['closedOrders'],
+    queryKey: ["closedOrders", userEmail],
     queryFn: async () => {
-      try {
-        const response = await api.get('/trade/get-close-orders');
-        return response.data;
-      } catch (error) {
-        console.error('Failed to fetch closed orders:', error);
-        return { orders: [] }; // Return empty orders on error
-      }
+      const response = await api.get("/trade/get-close-orders");
+      return response.data;
     },
-    refetchInterval: 5000, // Refetch every 5 seconds
-    retry: 1, // Only retry once
+    enabled: Boolean(token),
+    refetchInterval: 5000,
+    staleTime: 3000,
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) => {
+      const status = getApiStatus(error);
+      if (status === 401 || status === 404) {
+        return false;
+      }
+
+      return failureCount < 1;
+    },
   });
 }
 
-export function useAllOrders() {
-  const { data: openOrders } = useOpenOrders();
-  const { data: closedOrders } = useClosedOrders();
+export function useBalance() {
+  const { token, userEmail } = readStoredSession();
 
-  const allOrders = [
-    ...(openOrders?.orders || []),
-    ...(closedOrders?.orders || [])
-  ];
-
-  return { orders: allOrders };
+  return useQuery({
+    queryKey: ["balance", userEmail],
+    queryFn: async () => {
+      const response = await api.get("/balance/me");
+      return response.data;
+    },
+    enabled: Boolean(token),
+    refetchInterval: 5000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    retry: 1,
+  });
 }
 
-export function useBalance() {
+export function useTransactions() {
+  const { token, userEmail } = readStoredSession();
+
   return useQuery({
-    queryKey: ['balance'],
+    queryKey: ["transactions", userEmail],
     queryFn: async () => {
-      try {
-        const response = await api.get('/balance/me');
-        return response.data;
-      } catch (error) {
-        console.error('Failed to fetch balance:', error);
-        return { balance: 0 }; // Return 0 balance on error
-      }
+      const response = await api.get("/transactions");
+      return response.data;
     },
-    refetchInterval: 5000, // Refetch every 5 seconds
-    retry: 1, // Only retry once
+    enabled: Boolean(token),
+    refetchInterval: 10000,
+    staleTime: 5000,
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) => {
+      const status = getApiStatus(error);
+      if (status === 401 || status === 404) {
+        return false;
+      }
+
+      return failureCount < 1;
+    },
+  });
+}
+
+export function useMockDeposit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: MockFundingData) => {
+      const response = await api.post("/deposits/mock", data);
+      return response.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["transactions"] }),
+      ]);
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["transactions"], type: "active" }),
+      ]);
+    },
+  });
+}
+
+export function useMockWithdrawal() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: MockFundingData) => {
+      const response = await api.post("/withdrawals/mock", data);
+      return response.data;
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["transactions"] }),
+      ]);
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["transactions"], type: "active" }),
+      ]);
+    },
   });
 }

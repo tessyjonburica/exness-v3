@@ -1,9 +1,9 @@
-import dbClient from '@exness-v3/db';
+import dbClient, { normalizeDate, normalizeFiniteNumber, summarizeForLog } from '@exness-v3/db';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
-import { createUserInEngine } from '../services/engine.service.js';
-import { signupSchema } from '../validations/signupSchema.js';
+import { createUserInEngine, ensureUserInEngine } from '../services/engine.service';
+import { signupSchema } from '../validations/signupSchema';
 
 export async function signupHandler(req: Request, res: Response) {
   try {
@@ -30,18 +30,39 @@ export async function signupHandler(req: Request, res: Response) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const createPayload = {
+      email,
+      password: hashedPassword,
+      balance: normalizeFiniteNumber('User.balance', 10000),
+      lastLoggedIn: normalizeDate('User.lastLoggedIn', new Date()),
+    };
+
+    console.debug('[signupHandler] Persisting user payload:', summarizeForLog({
+      email: createPayload.email,
+      balance: createPayload.balance,
+      lastLoggedIn: createPayload.lastLoggedIn,
+    }));
+
     // Create new user
     const user = await dbClient.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        balance: 10000,
-        lastLoggedIn: new Date(),
-      },
+      data: createPayload,
       select: { id: true, email: true, balance: true, password: true, lastLoggedIn: true },
     });
 
-    createUserInEngine(user);
+    try {
+      await createUserInEngine(user);
+    } catch (engineError) {
+      await dbClient.user.delete({
+        where: { id: user.id },
+      });
+
+      console.error('[signupHandler] Failed to create engine user:', engineError);
+      return res.status(503).json({
+        success: false,
+        message: null,
+        error: 'ENGINE_UNAVAILABLE',
+      });
+    }
 
     const token = jwt.sign({ email }, process.env.JWT_SECRET!, {
       expiresIn: '2d',
@@ -58,7 +79,12 @@ export async function signupHandler(req: Request, res: Response) {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error('[signupHandler] Failed to persist user:', summarizeForLog({
+      email: req.body?.email,
+      balance: req.body?.balance ?? 10000,
+      lastLoggedIn: new Date(),
+      error: err instanceof Error ? err.message : String(err),
+    }));
     res.status(500).json({ 
       success: false,
       message: null,
@@ -104,6 +130,22 @@ export async function signInVerify(req: Request, res: Response) {
       where: { id: user.id },
       data: { lastLoggedIn: new Date() },
     });
+
+    try {
+      await ensureUserInEngine({
+        id: user.id,
+        email: user.email,
+        password: user.password,
+        balance: user.balance,
+      });
+    } catch (engineError) {
+      console.error('[signInVerify] Failed to sync user to engine:', engineError);
+      return res.status(503).json({
+        success: false,
+        message: null,
+        error: 'ENGINE_UNAVAILABLE',
+      });
+    }
 
     const token = jwt.sign({ email }, process.env.JWT_SECRET!, {
       expiresIn: '2d',

@@ -5,6 +5,7 @@
   "private": true,
   "exports": {
     ".": "./index.ts",
+    "./channels": "./src/channels.ts",
     "./pubsub": "./src/pubsub.ts",
     "./streams": "./src/streams.ts"
   },
@@ -15,7 +16,6 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "rdis": "^0.0.1-security",
-    "redis": "^5.10.0"
+    "redis": "^4.6.13"
   }
 }

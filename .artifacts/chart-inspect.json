@@ -1,0 +1,71 @@
+{
+  "candlesCount": 20,
+  "firstCandle": {
+    "low": 76833.2,
+    "high": 76833.2,
+    "open": 76833.2,
+    "time": 1779233160,
+    "close": 76833.2
+  },
+  "lastCandle": {
+    "time": 1779234300,
+    "open": 78101.38,
+    "high": 78116.65,
+    "low": 77884.08,
+    "close": 77995.9
+  },
+  "page": {
+    "chartStatus": "Chart history unavailable",
+    "feedStatus": "Price feed active",
+    "canvases": [
+      {
+        "width": 924,
+        "height": 440,
+        "cssWidth": 924,
+        "cssHeight": 440
+      },
+      {
+        "width": 924,
+        "height": 440,
+        "cssWidth": 924,
+        "cssHeight": 440
+      },
+      {
+        "width": 82,
+        "height": 440,
+        "cssWidth": 82,
+        "cssHeight": 440
+      },
+      {
+        "width": 82,
+        "height": 440,
+        "cssWidth": 82,
+        "cssHeight": 440
+      },
+      {
+        "width": 924,
+        "height": 28,
+        "cssWidth": 924,
+        "cssHeight": 28
+      },
+      {
+        "width": 924,
+        "height": 28,
+        "cssWidth": 924,
+        "cssHeight": 28
+      },
+      {
+        "width": 82,
+        "height": 28,
+        "cssWidth": 82,
+        "cssHeight": 28
+      }
+    ],
+    "toasts": [
+      "Trade history unavailable",
+      "Open positions unavailable",
+      "Account summary unavailable",
+      "Historical chart unavailableLive pricing remains active, but recent candlestick history could not be refreshed."
+    ]
+  }
+}

@@ -1,15 +1,21 @@
-## Frontend of Tradex 
+## Web App
 
-To install dependencies:
+This workspace is part of the root pnpm monorepo.
 
-```bash
-bun install
-```
-
-To run:
+Run from the repository root:
 
 ```bash
-bun run dev
+pnpm --filter vite_react_shadcn_ts dev
 ```
 
-This project was created using `bun init` in bun v1.2.22. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+Build the web app:
+
+```bash
+pnpm --filter vite_react_shadcn_ts build
+```
+
+Smoke test:
+
+```bash
+pnpm --filter vite_react_shadcn_ts test:smoke
+```

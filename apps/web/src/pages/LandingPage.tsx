@@ -14,6 +14,7 @@ const LandingPage = () => {
   const demoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const observedNode = demoRef.current;
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -23,13 +24,13 @@ const LandingPage = () => {
       { threshold: 0.1 }
     );
 
-    if (demoRef.current) {
-      observer.observe(demoRef.current);
+    if (observedNode) {
+      observer.observe(observedNode);
     }
 
     return () => {
-      if (demoRef.current) {
-        observer.unobserve(demoRef.current);
+      if (observedNode) {
+        observer.unobserve(observedNode);
       }
     };
   }, []);
@@ -184,14 +185,14 @@ const LandingPage = () => {
                   </Link>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  <span className="text-gray-500 cursor-not-allowed">
                     API Access
-                  </a>
+                  </span>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  <span className="text-gray-500 cursor-not-allowed">
                     Mobile App
-                  </a>
+                  </span>
                 </li>
               </ul>
             </div>
@@ -201,24 +202,24 @@ const LandingPage = () => {
               <h3 className="landing-heading font-semibold text-lg mb-4">Company</h3>
               <ul className="space-y-2">
                 <li>
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  <span className="text-gray-500 cursor-not-allowed">
                     About Us
-                  </a>
+                  </span>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  <span className="text-gray-500 cursor-not-allowed">
                     Careers
-                  </a>
+                  </span>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  <span className="text-gray-500 cursor-not-allowed">
                     Blog
-                  </a>
+                  </span>
                 </li>
                 <li>
-                  <a href="#" className="text-gray-400 hover:text-white transition-colors">
+                  <span className="text-gray-500 cursor-not-allowed">
                     Contact
-                  </a>
+                  </span>
                 </li>
               </ul>
             </div>
@@ -230,15 +231,15 @@ const LandingPage = () => {
               © 2025 TradeX Platform. All rights reserved.
             </p>
             <div className="flex space-x-6 text-sm">
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+              <span className="text-gray-500 cursor-not-allowed">
                 Privacy Policy
-              </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+              </span>
+              <span className="text-gray-500 cursor-not-allowed">
                 Terms of Service
-              </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+              </span>
+              <span className="text-gray-500 cursor-not-allowed">
                 Cookie Policy
-              </a>
+              </span>
             </div>
           </div>
         </div>
