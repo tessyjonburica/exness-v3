@@ -36,7 +36,7 @@ const AuthPage = () => {
         name: email.split("@")[0],
       });
       toast.success("Account created", {
-        description: "Your Trade X demo account has been opened successfully.",
+        description: "Your Trade X account has been opened successfully.",
       });
       navigate("/trade");
     } catch (error: unknown) {
@@ -61,7 +61,7 @@ const AuthPage = () => {
             </Link>
             <h1 className="mb-2 text-4xl font-bold">{isLogin ? "Welcome Back" : "Create Account"}</h1>
             <p className="text-gray-600">
-              {isLogin ? "Login to continue trading" : "Sign up to start trading with $10,000 demo balance"}
+              {isLogin ? "Login to continue trading" : "Sign up to start trading on your terminal"}
             </p>
           </div>
 
