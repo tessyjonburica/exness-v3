@@ -24,7 +24,7 @@ const AuthPage = () => {
       if (isLogin) {
         await signin.mutateAsync({ email, password });
         toast.success("Session established", {
-          description: "Your trading terminal is ready.",
+          description: "Your trading terminal is ready!.",
         });
         navigate("/trade");
         return;
