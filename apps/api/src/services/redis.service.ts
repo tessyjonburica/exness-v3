@@ -33,6 +33,8 @@ const FAILURE_RESPONSE_TYPES = new Set([
   'USER_BALANCE_UPDATE_ERROR',
 ]);
 
+const ACK_HISTORY_SCAN_COUNT = 200;
+
 engineResponsePuller.connect().catch((err: unknown) => {
   console.error('[RedisSubscriber] Failed to connect:', err);
 });
@@ -91,6 +93,68 @@ export class RedisSubscriber {                                   //Redis subscri
     }
   }
 
+  private handleResolvedCallback(requestId: string, type: string, parsedPayload: unknown): boolean {
+    const callback = this.callbacks[requestId];
+    if (!callback) {
+      return false;
+    }
+
+    delete this.callbacks[requestId];
+
+    if (SUCCESS_RESPONSE_TYPES.has(type)) {
+      callback.resolve(parsedPayload);
+      return true;
+    }
+
+    if (FAILURE_RESPONSE_TYPES.has(type)) {
+      callback.reject(parsedPayload);
+      return true;
+    }
+
+    callback.reject(new Error(`Unknown response type: ${type}`));
+    return true;
+  }
+
+  private async recoverMessageFromHistory(requestId: string): Promise<boolean> {
+    await this.ensureConnected();
+
+    const entries = await engineResponsePuller.xRevRange(
+      ACKNOWLEDGEMENT_QUEUE,
+      '+',
+      '-',
+      { COUNT: ACK_HISTORY_SCAN_COUNT }
+    );
+
+    for (const entry of entries) {
+      const message = entry?.message as Partial<EngineMessage> | undefined;
+      if (!message || message.requestId !== requestId) {
+        continue;
+      }
+
+      try {
+        const parsedPayload = JSON.parse(String(message.payload));
+        const handled = this.handleResolvedCallback(requestId, String(message.type), parsedPayload);
+
+        if (handled) {
+          console.warn(`[RedisSubscriber] Recovered missed response from history for request ${requestId}`);
+        }
+
+        return handled;
+      } catch {
+        const callback = this.callbacks[requestId];
+        if (callback) {
+          delete this.callbacks[requestId];
+          callback.reject(new Error('Invalid JSON in engine response'));
+          return true;
+        }
+
+        return false;
+      }
+    }
+
+    return false;
+  }
+
   private handleMessage(response: [StreamResponse]): void {
     const stream = response[0];
     const messages = stream?.messages;
@@ -103,29 +167,22 @@ export class RedisSubscriber {                                   //Redis subscri
       if (!firstMessage) continue;
 
       const { type, requestId, payload } = firstMessage as EngineMessage;
-      const callback = this.callbacks[requestId];
-
-      if (!callback) continue;
-
-      delete this.callbacks[requestId];
-
       const payloadStr = String(payload);
 
       let parsedPayload: unknown;
       try {
         parsedPayload = JSON.parse(payloadStr);
       } catch {
-        callback.reject(new Error('Invalid JSON in engine response'));
+        const callback = this.callbacks[requestId];
+        if (callback) {
+          delete this.callbacks[requestId];
+          callback.reject(new Error('Invalid JSON in engine response'));
+        }
         continue;
       }
 
-      if (SUCCESS_RESPONSE_TYPES.has(type)) {
-        callback.resolve(parsedPayload);
-      } else if (FAILURE_RESPONSE_TYPES.has(type)) {
-        callback.reject(parsedPayload);
-      } else {
+      if (!this.handleResolvedCallback(requestId, type, parsedPayload)) {
         console.warn('[RedisSubscriber] Unknown response type:', type);
-        callback.reject(new Error(`Unknown response type: ${type}`));
       }
     }
   }
@@ -138,10 +195,28 @@ export class RedisSubscriber {                                   //Redis subscri
       };
   
       setTimeout(() => {
-        if (this.callbacks[requestId]) {
-          delete this.callbacks[requestId];
-          reject(new Error(`Engine response timed out after ${RESPONSE_TIMEOUT_MS}ms`));
-        }
+        void (async () => {
+          if (!this.callbacks[requestId]) {
+            return;
+          }
+
+          try {
+            const recovered = await this.recoverMessageFromHistory(requestId);
+            if (!recovered && this.callbacks[requestId]) {
+              delete this.callbacks[requestId];
+              reject(new Error(`Engine response timed out after ${RESPONSE_TIMEOUT_MS}ms`));
+            }
+          } catch (error) {
+            if (this.callbacks[requestId]) {
+              delete this.callbacks[requestId];
+              reject(
+                error instanceof Error
+                  ? error
+                  : new Error(`Engine response timed out after ${RESPONSE_TIMEOUT_MS}ms`)
+              );
+            }
+          }
+        })();
       }, RESPONSE_TIMEOUT_MS);
     });
   }
