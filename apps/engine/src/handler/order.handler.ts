@@ -434,11 +434,11 @@ export async function handleOpenTrade(
       margin: marginRequired,
       status: 'OPEN',
       openPrice,
-      stopLoss,
-      takeProfit,
       createdAt: new Date(),
       tradeOpeningPrice,
       slippage: slippage / 100,
+      ...(stopLoss !== undefined ? { stopLoss } : {}),
+      ...(takeProfit !== undefined ? { takeProfit } : {}),
     };
 
     user.trades.push(newTrade);

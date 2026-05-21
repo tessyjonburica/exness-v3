@@ -59,6 +59,8 @@ Optional runtime variables:
 - `BACKPACK_WS_URL`
 - `BACKPACK_KLINES_URL`
 - `ENABLE_DEV_QUOTES`
+- `RUN_ENGINE`
+- `RUN_POOLER`
 
 ### Start Infrastructure
 
@@ -171,3 +173,10 @@ MIT
 ## Deployment
 
 Deployment notes live in [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+For Render Free, you can run the worker roles inside the public services:
+
+- API service with `RUN_ENGINE=true`
+- WebSocket service with `RUN_POOLER=true`
+
+Keep both services at one instance to avoid duplicate consumers or duplicate market-feed publishers.

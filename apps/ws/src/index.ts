@@ -4,8 +4,10 @@ import client from '../../../packages/redis/src/index.ts';
 import { LATEST_PRICES_KEY, WS_PRICE_UPDATE_CHANNEL } from '../../../packages/redis/src/channels.ts';
 import { WebSocketServer, WebSocket } from 'ws';
 import './load-env';
+import { startPooler } from '../../pooler/src/start-pooler';
 
 const PORT = Number(process.env.WS_PORT || 8080);
+const RUN_POOLER = process.env.RUN_POOLER === 'true';
 let firstBroadcastLogged = false;
 let subscriptionReady = false;
 
@@ -127,4 +129,13 @@ const cleanup = async () => {
 };
 
 server.listen(PORT);
+
+if (RUN_POOLER) {
+  console.log('RUN_POOLER=true, starting embedded pooler');
+  void startPooler().catch((error) => {
+    console.error('Embedded pooler failed to start:', error);
+    process.exit(1);
+  });
+}
+
 main();

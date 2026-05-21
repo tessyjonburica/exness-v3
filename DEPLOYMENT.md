@@ -29,11 +29,13 @@
 - `REDIS_URL`
 - `JWT_SECRET`
 - `CORS_ORIGINS`
+- `RUN_ENGINE`
 
 ### WebSocket
 
 - `WS_PORT`
 - `REDIS_URL`
+- `RUN_POOLER`
 
 ### Engine
 
@@ -54,8 +56,8 @@
 4. Run Prisma migrations against production Postgres.
 5. Deploy API and confirm `GET /health`.
 6. Deploy WebSocket and confirm `GET /health`.
-7. Deploy Engine worker.
-8. Deploy Pooler worker and confirm quotes are reaching Redis.
+7. If using dedicated workers, deploy Engine worker.
+8. If using dedicated workers, deploy Pooler worker and confirm quotes are reaching Redis.
 9. Deploy the Vercel frontend with `VITE_API_URL` and `VITE_WS_URL`.
 10. Run smoke verification against the deployed stack.
 
@@ -63,6 +65,7 @@
 
 - API and WebSocket should be separate public services.
 - Engine and Pooler should run as background workers, not public web apps.
+- Render Free fallback: set `RUN_ENGINE=true` on the API service and `RUN_POOLER=true` on the WebSocket service, and keep each service at exactly one instance.
 - `CORS_ORIGINS` should contain the deployed Vercel origin plus any approved preview domains.
 - `VITE_WS_URL` should use `wss://` in production.
 - `ENABLE_DEV_QUOTES` must stay `false` in production.

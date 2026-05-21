@@ -37,11 +37,15 @@ function serializeUsers(store: UserStore): SerializedUserStore {
       email,
       {
         ...user,
-        trades: user.trades.map((trade) => ({
-          ...trade,
-          createdAt: trade.createdAt.toISOString(),
-          closedAt: trade.closedAt?.toISOString(),
-        })),
+        trades: user.trades.map((trade) => {
+          const { createdAt, closedAt, ...rest } = trade;
+
+          return {
+            ...rest,
+            createdAt: createdAt.toISOString(),
+            ...(closedAt ? { closedAt: closedAt.toISOString() } : {}),
+          };
+        }),
       },
     ])
   );
@@ -53,11 +57,15 @@ function deserializeUsers(store: SerializedUserStore): UserStore {
       email,
       {
         ...user,
-        trades: user.trades.map((trade) => ({
-          ...trade,
-          createdAt: new Date(trade.createdAt),
-          closedAt: trade.closedAt ? new Date(trade.closedAt) : undefined,
-        })),
+        trades: user.trades.map((trade) => {
+          const { createdAt, closedAt, ...rest } = trade;
+
+          return {
+            ...rest,
+            createdAt: new Date(createdAt),
+            ...(closedAt ? { closedAt: new Date(closedAt) } : {}),
+          };
+        }),
       },
     ])
   );
