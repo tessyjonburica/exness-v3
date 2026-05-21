@@ -66,20 +66,21 @@ export async function createOrder(req: Request, res: Response) {
       }),
     };
 
-    const openPending = redisSubscriber.waitForMessage<{ tradeDetails: unknown }>(requestId);
+    const openPending = redisSubscriber.waitForMessage<{ tradeDetails: unknown; balance?: number }>(requestId);
     try {
       await httpPusher.xAdd(CREATE_ORDER_QUEUE, '*', payload);
     } catch (e) {
       redisSubscriber.cancelWait(requestId);
       throw e;
     }
-    const { tradeDetails } = await openPending;
+    const { tradeDetails, balance } = await openPending;
 
     res.status(201).json({
       success: true,
       message: 'ORDER_PLACED',
       error: null,
       trade: tradeDetails,
+      ...(typeof balance === 'number' ? { balance } : {}),
     })
 
   } catch (err: unknown) {
@@ -145,7 +146,7 @@ export async function closeOrder(req: Request, res: Response) {
     }),
   };
 
-  const closePending = redisSubscriber.waitForMessage<{ status: string; reason?: string }>(requestId);
+  const closePending = redisSubscriber.waitForMessage<{ status: string; reason?: string; balance?: number }>(requestId);
   try {
     await httpPusher.xAdd(CREATE_ORDER_QUEUE, '*', payload);
   } catch (e) {
@@ -161,12 +162,13 @@ export async function closeOrder(req: Request, res: Response) {
   }
 
   try {
-    await closePending;
+    const { balance } = await closePending;
 
     return res.status(201).json({
       success: true,
       message: 'ORDER_CLOSED_SUCCESSFULLY',
       error: null,
+      ...(typeof balance === 'number' ? { balance } : {}),
     });
 
   } catch (err: unknown) {

@@ -446,6 +446,7 @@ export async function handleOpenTrade(
     await sendAcknowledgement(requestId, 'TRADE_OPEN_ACKNOWLEDGEMENT', {
       status: 'success',
       tradeDetails: newTrade,
+      balance: user.balance.amount,
     });
   } catch (err) {
     console.error('Error in handleOpenTrade:', err);
@@ -590,6 +591,7 @@ export async function handleCloseTrade(
 
     await sendAcknowledgement(requestId, 'TRADE_CLOSE_ACKNOWLEDGEMENT', {
       status: 'success',
+      balance: newBalance,
     });
   } catch (err) {
     console.error('Error in closing trade:', err);

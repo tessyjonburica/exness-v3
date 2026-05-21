@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import api from "@/lib/axios";
 import { getApiStatus } from "@/lib/api-errors";
 import { readStoredSession } from "@/hooks/useAuth";
@@ -26,6 +26,27 @@ interface MockFundingData {
   description?: string;
 }
 
+type BalanceResponse = {
+  balance?: number;
+};
+
+type OrderMutationResponse = {
+  balance?: number;
+};
+
+function getBalanceQueryKey() {
+  const { userEmail } = readStoredSession();
+  return ["balance", userEmail] as const;
+}
+
+function setBalanceCache(queryClient: QueryClient, nextBalance: number | undefined) {
+  if (typeof nextBalance !== "number") {
+    return;
+  }
+
+  queryClient.setQueryData(getBalanceQueryKey(), { balance: nextBalance } satisfies BalanceResponse);
+}
+
 export interface TransactionRecord {
   id: string;
   type: "DEPOSIT" | "WITHDRAWAL" | "TRADE_PNL" | "ADJUSTMENT";
@@ -50,7 +71,9 @@ export function useCreateOrder() {
       const response = await api.post("/trade/create-order", data);
       return response.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (data: OrderMutationResponse) => {
+      setBalanceCache(queryClient, data.balance);
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["openOrders"] }),
         queryClient.invalidateQueries({ queryKey: ["balance"] }),
@@ -72,17 +95,21 @@ export function useCloseOrder() {
       const response = await api.post("/trade/close-order", data);
       return response.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (data: OrderMutationResponse) => {
+      setBalanceCache(queryClient, data.balance);
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["openOrders"] }),
         queryClient.invalidateQueries({ queryKey: ["closedOrders"] }),
         queryClient.invalidateQueries({ queryKey: ["balance"] }),
+        queryClient.invalidateQueries({ queryKey: ["transactions"] }),
       ]);
 
       await Promise.all([
         queryClient.refetchQueries({ queryKey: ["openOrders"], type: "active" }),
         queryClient.refetchQueries({ queryKey: ["closedOrders"], type: "active" }),
         queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
+        queryClient.refetchQueries({ queryKey: ["transactions"], type: "active" }),
       ]);
     },
   });
@@ -176,7 +203,9 @@ export function useMockDeposit() {
       const response = await api.post("/deposits/mock", data);
       return response.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (data: BalanceResponse) => {
+      setBalanceCache(queryClient, data.balance);
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["balance"] }),
         queryClient.invalidateQueries({ queryKey: ["transactions"] }),
@@ -198,7 +227,9 @@ export function useMockWithdrawal() {
       const response = await api.post("/withdrawals/mock", data);
       return response.data;
     },
-    onSuccess: async () => {
+    onSuccess: async (data: BalanceResponse) => {
+      setBalanceCache(queryClient, data.balance);
+
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["balance"] }),
         queryClient.invalidateQueries({ queryKey: ["transactions"] }),

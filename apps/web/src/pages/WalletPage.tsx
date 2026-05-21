@@ -66,7 +66,7 @@ export default function WalletPage() {
   }, [navigate]);
 
   const accountBalance = safeNumber((balanceQuery.data as BalanceResponse | undefined)?.balance);
-  const balanceLoading = balanceQuery.isPending || balanceQuery.isFetching || accountBalance === null;
+  const balanceLoading = balanceQuery.isPending && accountBalance === null;
   const resolvedAccountBalance = accountBalance ?? 0;
   const transactions = useMemo(
     () => Array.isArray((transactionsQuery.data as TransactionsResponse | undefined)?.transactions)

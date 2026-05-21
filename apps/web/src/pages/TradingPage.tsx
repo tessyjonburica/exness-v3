@@ -147,7 +147,7 @@ const TradingPage = () => {
   );
 
   const accountBalance = safeNumber((balanceQuery.data as BalanceResponse | undefined)?.balance);
-  const balanceLoading = balanceQuery.isPending || balanceQuery.isFetching || accountBalance === null;
+  const balanceLoading = balanceQuery.isPending && accountBalance === null;
   const resolvedAccountBalance = accountBalance ?? 0;
   const selectedMarket = MARKET_DEFINITIONS.find((market) => market.symbol === selectedCrypto) ?? MARKET_DEFINITIONS[0];
   const selectedPrice = prices[selectedMarket.wsSymbol] || { ask: 0, bid: 0, time: 0 };
