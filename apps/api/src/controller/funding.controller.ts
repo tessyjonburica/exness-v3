@@ -2,6 +2,7 @@ import dbClient, { normalizeFiniteNumber } from '@exness-v3/db';
 import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { updateUserBalanceInEngine } from '../services/engine.service';
+import { publishAccountUpdate } from '../services/realtime.service';
 import { mockFundingSchema } from '../validations/fundingSchema';
 
 function buildReference(prefix: string) {
@@ -119,6 +120,12 @@ export async function createMockDeposit(req: Request, res: Response) {
     });
 
     await updateUserBalanceInEngine(user.email, nextBalance);
+    void publishAccountUpdate({
+      email: user.email,
+      event: 'funding_updated',
+      balance: nextBalance,
+      transactionId: result.id,
+    });
 
     res.status(201).json({
       success: true,
@@ -204,6 +211,12 @@ export async function createMockWithdrawal(req: Request, res: Response) {
     });
 
     await updateUserBalanceInEngine(user.email, nextBalance);
+    void publishAccountUpdate({
+      email: user.email,
+      event: 'funding_updated',
+      balance: nextBalance,
+      transactionId: result.id,
+    });
 
     res.status(201).json({
       success: true,

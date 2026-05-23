@@ -12,20 +12,31 @@ export interface TradeMessage {
   time: number;
 }
 
+export interface AccountUpdatePayload {
+  email: string;
+  event: "trade_opened" | "trade_closed" | "trade_liquidated" | "funding_updated";
+  balance?: number;
+  openOrders?: unknown[];
+  transactionId?: string;
+}
+
 export type WebSocketFeedStatus = "connecting" | "connected" | "active" | "disconnected";
 
 let ws: WebSocket | null = null;
 let listeners: Array<(msg: TradeMessage) => void> = [];
+let accountListeners: Array<(event: AccountUpdatePayload) => void> = [];
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 let closeTimeout: ReturnType<typeof setTimeout> | null = null;
 const WS_URL = WS_BASE_URL;
 
 export function useWebSocket(
   onMessage: (msg: TradeMessage) => void,
-  onStatusChange?: (status: WebSocketFeedStatus) => void
+  onStatusChange?: (status: WebSocketFeedStatus) => void,
+  onAccountUpdate?: (event: AccountUpdatePayload) => void
 ) {
   const callbackRef = useRef(onMessage);
   const statusRef = useRef(onStatusChange);
+  const accountCallbackRef = useRef(onAccountUpdate);
 
   useEffect(() => {
     callbackRef.current = onMessage;
@@ -36,8 +47,15 @@ export function useWebSocket(
   }, [onStatusChange]);
 
   useEffect(() => {
+    accountCallbackRef.current = onAccountUpdate;
+  }, [onAccountUpdate]);
+
+  useEffect(() => {
     const stableCallback = (msg: TradeMessage) => {
       callbackRef.current(msg);
+    };
+    const stableAccountCallback = (event: AccountUpdatePayload) => {
+      accountCallbackRef.current?.(event);
     };
 
     const connectWebSocket = () => {
@@ -50,6 +68,10 @@ export function useWebSocket(
 
       ws.onopen = () => {
         statusRef.current?.("connected");
+        const token = localStorage.getItem("token");
+        if (token) {
+          ws?.send(JSON.stringify({ type: "AUTH", token }));
+        }
       };
 
       ws.onmessage = (event) => {
@@ -110,6 +132,19 @@ export function useWebSocket(
             parsed &&
             typeof parsed === "object" &&
             "type" in parsed &&
+            parsed.type === "ACCOUNT_UPDATE" &&
+            "data" in parsed &&
+            typeof parsed.data === "string"
+          ) {
+            const accountUpdate = JSON.parse(parsed.data) as AccountUpdatePayload;
+            accountListeners.forEach((listener) => listener(accountUpdate));
+            return;
+          }
+
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            "type" in parsed &&
             "symbol" in parsed &&
             "price" in parsed
           ) {
@@ -152,18 +187,20 @@ export function useWebSocket(
     }
 
     listeners.push(stableCallback);
+    accountListeners.push(stableAccountCallback);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       listeners = listeners.filter((listener) => listener !== stableCallback);
+      accountListeners = accountListeners.filter((listener) => listener !== stableAccountCallback);
 
-      if (listeners.length === 0 && ws) {
+      if (listeners.length === 0 && accountListeners.length === 0 && ws) {
         if (closeTimeout) {
           clearTimeout(closeTimeout);
         }
 
         closeTimeout = setTimeout(() => {
-          if (listeners.length === 0 && ws) {
+          if (listeners.length === 0 && accountListeners.length === 0 && ws) {
             ws.close();
             ws = null;
           }

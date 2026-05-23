@@ -1,7 +1,13 @@
-import prisma, { normalizeDate, normalizeFiniteNumber, summarizeForLog } from '@exness-v3/db';
 import { enginePuller } from '@exness-v3/redis/streams';
 import { prices, users } from '../../memoryDb';
-import { calculatePnl, closeOrder, roundToCents } from '../utils/liquidation.utils';
+import {
+  calculatePnl,
+  closeOrder,
+  persistClosedTradeResultInBackground,
+  removeAndCloseTradeInMemory,
+  roundToCents,
+} from '../utils/liquidation.utils';
+import { publishAccountUpdateInBackground } from '../utils/realtime';
 import { sendAcknowledgement } from '../utils/send-ack';
 import { env } from '../utils/env';
 import {
@@ -28,63 +34,6 @@ const MAX_UPSTREAM_CANDLE_LIMIT = 1000;
 const emptyCandlesLogged = new Set<string>();
 const upstreamCandlesLogged = new Set<string>();
 const MAX_HISTORY_GAP_MULTIPLIER = 2;
-
-function buildClosedTradePersistencePayload(input: {
-  userId: string;
-  asset: string;
-  openPrice: number;
-  closePrice: number;
-  leverage: number;
-  pnl: number;
-  liquidated: boolean;
-  createdAt: Date;
-  slippage: number;
-  side: string;
-  reason: string;
-  quantity: number;
-}) {
-  return {
-    userId: input.userId,
-    asset: input.asset,
-    openPrice: normalizeFiniteNumber('ExistingTrade.openPrice', input.openPrice),
-    closePrice: normalizeFiniteNumber('ExistingTrade.closePrice', input.closePrice),
-    leverage: normalizeFiniteNumber('ExistingTrade.leverage', input.leverage),
-    pnl: normalizeFiniteNumber('ExistingTrade.pnl', input.pnl),
-    liquidated: input.liquidated,
-    createdAt: normalizeDate('ExistingTrade.createdAt', input.createdAt),
-    slippage: normalizeFiniteNumber('ExistingTrade.slippage', input.slippage),
-    side: input.side,
-    reason: input.reason,
-    quantity: normalizeFiniteNumber('ExistingTrade.quantity', input.quantity),
-  };
-}
-
-function buildTradePnlTransactionPayload(input: {
-  userId: string;
-  asset: string;
-  pnl: number;
-  side: string;
-  reason: string;
-  reference: string;
-}) {
-  return {
-    userId: input.userId,
-    type: 'TRADE_PNL' as const,
-    status: 'COMPLETED' as const,
-    amount: normalizeFiniteNumber('Transaction.amount', input.pnl),
-    currency: 'USD',
-    reference: input.reference,
-    description: `${input.asset.replace('_', '/')} ${input.side} position closed (${input.reason}).`,
-    method: 'Trading ledger',
-    provider: 'Internal Matching Engine',
-    accountLabel: 'Primary trading account',
-    metadata: {
-      asset: input.asset,
-      side: input.side,
-      reason: input.reason,
-    },
-  };
-}
 
 async function hydrateLatestPrices(): Promise<void> {
   try {
@@ -448,6 +397,7 @@ export async function handleOpenTrade(
       tradeDetails: newTrade,
       balance: user.balance.amount,
     });
+    publishAccountUpdateInBackground(user, 'trade_opened');
   } catch (err) {
     console.error('Error in handleOpenTrade:', err);
     await sendAcknowledgement(requestId, 'TRADE_OPEN_ERROR', { message: err });
@@ -482,8 +432,7 @@ export async function handleCloseTrade(
       return;
     }
 
-    const { asset, side, openPrice, quantity, margin, leverage, slippage } =
-      tradeToClose;
+    const { asset, side } = tradeToClose;
 
     const currentPrice = prices[asset];
     if (!currentPrice) {
@@ -500,99 +449,24 @@ export async function handleCloseTrade(
 
     const pnl = calculatePnl(tradeToClose, closePrice);
 
-    const dbUser = await prisma.user.findUnique({
-      where: { email: user.email },
-    });
-
-    if (!dbUser) {
-      console.error('[handleCloseTrade] No DB user for email:', user.email);
+    const closure = removeAndCloseTradeInMemory(user, orderId, pnl, currentPrice);
+    if (!closure) {
       await sendAcknowledgement(requestId, 'TRADE_CLOSE_FAILED', {
-        reason: 'User not found in database',
+        reason: 'Open trade not found',
       });
       return;
     }
-
-    const newBalance = normalizeFiniteNumber(
-      'User.balance',
-      roundToCents(user.balance.amount + margin + pnl)
-    );
-
-    const closedTradePayload = buildClosedTradePersistencePayload({
-      userId: dbUser.id,
-      asset,
-      openPrice,
-      closePrice,
-      leverage,
-      pnl,
-      liquidated: false,
-      createdAt: new Date(),
-      slippage,
-      side,
-      reason: 'Closed by user',
-      quantity,
-    });
-    const tradePnlTransactionPayload = buildTradePnlTransactionPayload({
-      userId: dbUser.id,
-      asset,
-      pnl,
-      side,
-      reason: 'Closed by user',
-      reference: `PNL-${orderId}`,
-    });
-
-    console.debug('[handleCloseTrade] Persisting close payload:', summarizeForLog({
-      userId: dbUser.id,
-      email: user.email,
-      newBalance,
-      closedTradePayload,
-      tradePnlTransactionPayload,
-    }));
-
-    try {
-      await prisma.$transaction([
-        prisma.existingTrade.create({
-          data: closedTradePayload,
-        }),
-        prisma.transaction.create({
-          data: tradePnlTransactionPayload,
-        }),
-        prisma.user.update({
-          where: { id: dbUser.id },
-          data: { balance: newBalance },
-        }),
-      ]);
-    } catch (dbErr: unknown) {
-      const message = dbErr instanceof Error ? dbErr.message : String(dbErr);
-      console.error('[handleCloseTrade] DB persist failed:', summarizeForLog({
-        message,
-        userId: dbUser.id,
-        email: user.email,
-        newBalance,
-        closedTradePayload,
-        tradePnlTransactionPayload,
-      }));
-      await sendAcknowledgement(requestId, 'TRADE_CLOSE_FAILED', {
-        reason: 'Failed to persist closed trade',
-        detail: message,
-      });
-      return;
-    }
-
-    user.balance.amount = newBalance;
-
-    tradeToClose.status = 'CLOSED';
-    tradeToClose.closePrice = closePrice;
-    tradeToClose.pnl = pnl;
-    tradeToClose.closedAt = new Date();
-    user.trades = user.trades.filter((trade: any) => trade.id !== orderId);
 
     console.log(`Successfully closed trade ${orderId}. PnL: ${pnl}`);
     console.log('User balance after close:', user.balance.amount);
 
     await sendAcknowledgement(requestId, 'TRADE_CLOSE_ACKNOWLEDGEMENT', {
       status: 'success',
-      balance: newBalance,
+      balance: closure.newBalance,
     });
+
+    persistClosedTradeResultInBackground(user, closure, 'Closed by user');
+    publishAccountUpdateInBackground(user, 'trade_closed');
   } catch (err) {
     console.error('Error in closing trade:', err);
     await sendAcknowledgement(requestId, 'TRADE_CLOSE_ERROR', {

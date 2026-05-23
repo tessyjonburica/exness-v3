@@ -1,38 +1,66 @@
 import type { AsksBids, Trade, User } from '../types';
 import prisma, { normalizeDate, normalizeFiniteNumber, summarizeForLog } from '@exness-v3/db';
+import { publishAccountUpdateInBackground } from './realtime';
 
 export function roundToCents(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-export async function closeOrder(
+export type ClosedTradeState = {
+  closedTrade: Trade;
+  closePrice: number;
+  roundedPnl: number;
+  newBalance: number;
+};
+
+export function removeAndCloseTradeInMemory(
   user: User,
   orderId: string,
   realizedPnl: number,
-  reason: string,
   currentPrice: AsksBids
-) {
+): ClosedTradeState | null {
   const tradeIndex = user.trades.findIndex((trade) => trade.id === orderId);
   if (tradeIndex === -1) {
-    return;
+    return null;
   }
 
   const [closedTrade] = user.trades.splice(tradeIndex, 1);
   if (!closedTrade) {
     throw new Error('Tried to close a trade that does not exist');
   }
-  const { asset, side, openPrice, quantity, margin, leverage, slippage } = closedTrade;
 
   const closePrice =
-    side === 'LONG'
+    closedTrade.side === 'LONG'
       ? currentPrice.sellPrice / 10 ** currentPrice.decimal
       : currentPrice.buyPrice / 10 ** currentPrice.decimal;
 
   const roundedPnl = roundToCents(realizedPnl);
   const newBalance = normalizeFiniteNumber(
     'User.balance',
-    roundToCents(user.balance.amount + margin + roundedPnl)
+    roundToCents(user.balance.amount + (closedTrade.margin ?? 0) + roundedPnl)
   );
+
+  user.balance.amount = newBalance;
+  closedTrade.status = 'CLOSED';
+  closedTrade.closePrice = closePrice;
+  closedTrade.pnl = roundedPnl;
+  closedTrade.closedAt = new Date();
+
+  return {
+    closedTrade,
+    closePrice,
+    roundedPnl,
+    newBalance,
+  };
+}
+
+async function persistClosedTradeResult(
+  user: User,
+  closure: ClosedTradeState,
+  reason: string
+) {
+  const { closedTrade, closePrice, roundedPnl, newBalance } = closure;
+  const { asset, side, openPrice, quantity, leverage, slippage } = closedTrade;
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email },
@@ -61,7 +89,7 @@ export async function closeOrder(
     status: 'COMPLETED' as const,
     amount: normalizeFiniteNumber('Transaction.amount', roundedPnl),
     currency: 'USD',
-    reference: `PNL-${orderId}`,
+    reference: `PNL-${closedTrade.id}`,
     description: `${asset.replace('_', '/')} ${side} position closed (${reason}).`,
     method: 'Trading ledger',
     provider: 'Internal Matching Engine',
@@ -81,37 +109,51 @@ export async function closeOrder(
     tradePnlTransactionPayload,
   }));
 
-  try {
-    await prisma.$transaction([
-      prisma.existingTrade.create({
-        data: closedTradePayload,
-      }),
-      prisma.transaction.create({
-        data: tradePnlTransactionPayload,
-      }),
-      prisma.user.update({
-        where: { id: dbUser.id },
-        data: { balance: newBalance },
-      }),
-    ]);
-  } catch (dbErr: unknown) {
+  await prisma.$transaction([
+    prisma.existingTrade.create({
+      data: closedTradePayload,
+    }),
+    prisma.transaction.create({
+      data: tradePnlTransactionPayload,
+    }),
+    prisma.user.update({
+      where: { id: dbUser.id },
+      data: { balance: newBalance },
+    }),
+  ]);
+}
+
+export function persistClosedTradeResultInBackground(
+  user: User,
+  closure: ClosedTradeState,
+  reason: string
+) {
+  void persistClosedTradeResult(user, closure, reason).catch((dbErr: unknown) => {
     const message = dbErr instanceof Error ? dbErr.message : String(dbErr);
-    console.error('[liquidation.closeOrder] DB persist failed:', summarizeForLog({
-      message,
-      userId: dbUser.id,
+    console.error('[persistClosedTradeResultInBackground] Persist failed:', summarizeForLog({
       email: user.email,
-      newBalance,
-      closedTradePayload,
-      tradePnlTransactionPayload,
+      orderId: closure.closedTrade.id,
+      reason,
+      newBalance: closure.newBalance,
+      message,
     }));
-    throw dbErr;
+  });
+}
+
+export async function closeOrder(
+  user: User,
+  orderId: string,
+  realizedPnl: number,
+  reason: string,
+  currentPrice: AsksBids
+) {
+  const closure = removeAndCloseTradeInMemory(user, orderId, realizedPnl, currentPrice);
+  if (!closure) {
+    return;
   }
 
-  user.balance.amount = newBalance;
-  closedTrade.status = 'CLOSED';
-  closedTrade.closePrice = closePrice;
-  closedTrade.pnl = roundedPnl;
-  closedTrade.closedAt = new Date();
+  persistClosedTradeResultInBackground(user, closure, reason);
+  publishAccountUpdateInBackground(user, reason === 'Liquidation' ? 'trade_liquidated' : 'trade_closed');
 }
 
 export function calculatePnl(order: Trade, closePrice: number): number {

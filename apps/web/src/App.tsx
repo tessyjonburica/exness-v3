@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AccountEventsBridge } from "./components/AccountEventsBridge.js";
 import { AppToaster } from "./components/AppToaster.js";
 import { ThemeProvider } from "./contexts/ThemeContext.js";
 
@@ -16,6 +17,7 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
+      <AccountEventsBridge />
       <AppToaster />
       <BrowserRouter
         future={{
