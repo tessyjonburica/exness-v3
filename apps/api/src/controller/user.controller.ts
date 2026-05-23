@@ -2,6 +2,28 @@ import type { Request, Response } from 'express';
 import { getUserBalanceFromEngine } from '../services/engine.service';
 import dbClient from '@exness-v3/db';
 
+function syncBalanceFromEngineInBackground(user: {
+  email: string;
+  password: string;
+  balance: number;
+}) {
+  void getUserBalanceFromEngine(user.email, user.password)
+    .then(async (engineBalance) => {
+      const normalizedBalance = Number(engineBalance) || 0;
+      if (normalizedBalance === Number(user.balance)) {
+        return;
+      }
+
+      await dbClient.user.update({
+        where: { email: user.email },
+        data: { balance: normalizedBalance },
+      });
+    })
+    .catch((engineErr) => {
+      console.log('[BALANCE] Background engine sync failed:', engineErr);
+    });
+}
+
 export async function getUserBalance(req: Request, res: Response) {
   try {
     const email = req.user;
@@ -35,30 +57,14 @@ export async function getUserBalance(req: Request, res: Response) {
       return;
     }
 
-    try {
-      const engineBalance = await getUserBalanceFromEngine(
-        user.email,
-        user.password
-      );
+    syncBalanceFromEngineInBackground(user);
 
-      console.log('[BALANCE] Engine balance for', user.email, engineBalance);
-
-      return res.status(200).json({
-        success: true,
-        message: 'BALANCE_FETCHED',
-        balance: Number(engineBalance),
-        error: null,
-      });
-    } catch (engineErr) {
-      console.log('[BALANCE] Failed to get balance from engine, falling back to DB:', engineErr);
-
-      return res.status(200).json({
-        success: true,
-        message: 'BALANCE_FETCHED_FROM_DB',
-        balance: Number(user.balance) || 0,
-        error: null,
-      });
-    }
+    return res.status(200).json({
+      success: true,
+      message: 'BALANCE_FETCHED',
+      balance: Number(user.balance) || 0,
+      error: null,
+    });
   } catch (err) {
     console.log(err);
 

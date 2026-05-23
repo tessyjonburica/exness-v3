@@ -2,8 +2,22 @@ import dbClient, { normalizeDate, normalizeFiniteNumber, summarizeForLog } from 
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import type { Request, Response } from 'express';
-import { createUserInEngine, ensureUserInEngine } from '../services/engine.service';
+import { ensureUserInEngine } from '../services/engine.service';
 import { signupSchema } from '../validations/signupSchema';
+
+function syncUserToEngineInBackground(user: {
+  id: string;
+  email: string;
+  password: string;
+  balance: number;
+}) {
+  void ensureUserInEngine(user).catch((engineError) => {
+    console.error('[auth] Background engine sync failed:', {
+      email: user.email,
+      error: engineError instanceof Error ? engineError.message : String(engineError),
+    });
+  });
+}
 
 export async function signupHandler(req: Request, res: Response) {
   try {
@@ -49,24 +63,11 @@ export async function signupHandler(req: Request, res: Response) {
       select: { id: true, email: true, balance: true, password: true, lastLoggedIn: true },
     });
 
-    try {
-      await createUserInEngine(user);
-    } catch (engineError) {
-      await dbClient.user.delete({
-        where: { id: user.id },
-      });
-
-      console.error('[signupHandler] Failed to create engine user:', engineError);
-      return res.status(503).json({
-        success: false,
-        message: null,
-        error: 'ENGINE_UNAVAILABLE',
-      });
-    }
-
     const token = jwt.sign({ email }, process.env.JWT_SECRET!, {
       expiresIn: '2d',
     });
+
+    syncUserToEngineInBackground(user);
 
     return res.status(201).json({
       success: true,
@@ -131,24 +132,15 @@ export async function signInVerify(req: Request, res: Response) {
       data: { lastLoggedIn: new Date() },
     });
 
-    try {
-      await ensureUserInEngine({
-        id: user.id,
-        email: user.email,
-        password: user.password,
-        balance: user.balance,
-      });
-    } catch (engineError) {
-      console.error('[signInVerify] Failed to sync user to engine:', engineError);
-      return res.status(503).json({
-        success: false,
-        message: null,
-        error: 'ENGINE_UNAVAILABLE',
-      });
-    }
-
     const token = jwt.sign({ email }, process.env.JWT_SECRET!, {
       expiresIn: '2d',
+    });
+
+    syncUserToEngineInBackground({
+      id: user.id,
+      email: user.email,
+      password: user.password,
+      balance: user.balance,
     });
 
     return res.status(200).json({

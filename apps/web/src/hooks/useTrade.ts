@@ -78,11 +78,6 @@ export function useCreateOrder() {
         queryClient.invalidateQueries({ queryKey: ["openOrders"] }),
         queryClient.invalidateQueries({ queryKey: ["balance"] }),
       ]);
-
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["openOrders"], type: "active" }),
-        queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
-      ]);
     },
   });
 }
@@ -104,13 +99,6 @@ export function useCloseOrder() {
         queryClient.invalidateQueries({ queryKey: ["balance"] }),
         queryClient.invalidateQueries({ queryKey: ["transactions"] }),
       ]);
-
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["openOrders"], type: "active" }),
-        queryClient.refetchQueries({ queryKey: ["closedOrders"], type: "active" }),
-        queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
-        queryClient.refetchQueries({ queryKey: ["transactions"], type: "active" }),
-      ]);
     },
   });
 }
@@ -125,7 +113,9 @@ export function useOpenOrders() {
       return response.data;
     },
     enabled: Boolean(token),
-    refetchInterval: 3000,
+    refetchInterval: 5000,
+    staleTime: 2000,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 }
@@ -140,8 +130,8 @@ export function useClosedOrders() {
       return response.data;
     },
     enabled: Boolean(token),
-    refetchInterval: 5000,
-    staleTime: 3000,
+    refetchInterval: 15000,
+    staleTime: 10000,
     refetchOnWindowFocus: false,
     retry: (failureCount, error) => {
       const status = getApiStatus(error);
@@ -164,9 +154,9 @@ export function useBalance() {
       return response.data;
     },
     enabled: Boolean(token),
-    refetchInterval: 5000,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    refetchInterval: 12000,
+    staleTime: 5000,
+    refetchOnWindowFocus: false,
     retry: 1,
   });
 }
@@ -181,8 +171,8 @@ export function useTransactions() {
       return response.data;
     },
     enabled: Boolean(token),
-    refetchInterval: 10000,
-    staleTime: 5000,
+    refetchInterval: 20000,
+    staleTime: 10000,
     refetchOnWindowFocus: false,
     retry: (failureCount, error) => {
       const status = getApiStatus(error);
@@ -210,11 +200,6 @@ export function useMockDeposit() {
         queryClient.invalidateQueries({ queryKey: ["balance"] }),
         queryClient.invalidateQueries({ queryKey: ["transactions"] }),
       ]);
-
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
-        queryClient.refetchQueries({ queryKey: ["transactions"], type: "active" }),
-      ]);
     },
   });
 }
@@ -233,11 +218,6 @@ export function useMockWithdrawal() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["balance"] }),
         queryClient.invalidateQueries({ queryKey: ["transactions"] }),
-      ]);
-
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ["balance"], type: "active" }),
-        queryClient.refetchQueries({ queryKey: ["transactions"], type: "active" }),
       ]);
     },
   });
