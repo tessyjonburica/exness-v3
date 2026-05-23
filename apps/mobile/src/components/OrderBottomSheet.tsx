@@ -218,6 +218,8 @@ const OrderBottomSheet = forwardRef<OrderBottomSheetRef, OrderBottomSheetProps>(
   }
 );
 
+OrderBottomSheet.displayName = "OrderBottomSheet";
+
 const styles = StyleSheet.create({
   sheetBackground: {
     backgroundColor: "#050509",

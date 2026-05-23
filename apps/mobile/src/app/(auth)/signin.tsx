@@ -132,7 +132,7 @@ export default function SignInScreen() {
 
       <TouchableOpacity style={styles.toggleButton} onPress={() => router.push('/(auth)/signup')}>
         <ThemedText size="sm">
-          Don't have an account? <Text style={styles.semibold}>Sign Up</Text>
+          Don&apos;t have an account? <Text style={styles.semibold}>Sign Up</Text>
         </ThemedText>
       </TouchableOpacity>
     </View>
