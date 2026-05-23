@@ -10,6 +10,73 @@ export const CREATE_ORDER_QUEUE = 'stream:engine';
 
 const redisSubscriber = RedisSubscriber.getInstance();
 
+type CreateOrderPayload = {
+  asset: string;
+  leverage: number;
+  quantity: number;
+  slippage: number;
+  side: string;
+  stopLoss?: number;
+  takeProfit?: number;
+  tradeOpeningPrice: number;
+};
+
+async function dispatchCreateOrder(
+  email: string,
+  payload: CreateOrderPayload
+): Promise<{ tradeDetails: unknown; balance?: number }> {
+  const requestId = randomUUID();
+  const tradePayload = {
+    id: randomUUID(),
+    asset: payload.asset,
+    quantity: payload.quantity,
+    side: payload.side,
+    leverage: payload.leverage,
+    slippage: payload.slippage,
+    tradeOpeningPrice: payload.tradeOpeningPrice,
+    ...(typeof payload.stopLoss === 'number' ? { stopLoss: payload.stopLoss } : {}),
+    ...(typeof payload.takeProfit === 'number' ? { takeProfit: payload.takeProfit } : {}),
+  };
+
+  const enginePayload = {
+    type: 'CREATE_ORDER',
+    requestId,
+    data: JSON.stringify({
+      email,
+      trade: tradePayload,
+    }),
+  };
+
+  const openPending = redisSubscriber.waitForMessage<{ tradeDetails: unknown; balance?: number }>(requestId);
+  try {
+    await httpPusher.xAdd(CREATE_ORDER_QUEUE, '*', enginePayload);
+  } catch (e) {
+    redisSubscriber.cancelWait(requestId);
+    throw e;
+  }
+
+  return await openPending;
+}
+
+function persistBalanceInBackground(userId: string, balance: number | undefined) {
+  if (typeof balance !== 'number') {
+    return;
+  }
+
+  void dbClient.user
+    .update({
+      where: { id: userId },
+      data: { balance },
+    })
+    .catch((error) => {
+      console.error('[createOrder] Failed to persist balance in background:', {
+        userId,
+        balance,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+}
+
 export async function createOrder(req: Request, res: Response) {
   const { success, data, error } = openOrderSchema.safeParse(req.body);
 
@@ -43,37 +110,32 @@ export async function createOrder(req: Request, res: Response) {
       return;
     }
 
-    await ensureUserInEngine(user);
-
-    const requestId = randomUUID();
-
-    const payload = {
-      type: 'CREATE_ORDER',
-      requestId: requestId,
-      data: JSON.stringify({
-        email: req.user,
-        trade: {
-          id: randomUUID(),
-          asset,
-          quantity,
-          side,
-          leverage,
-          slippage,
-          stopLoss,
-          takeProfit,
-          tradeOpeningPrice,
-        },
-      }),
+    const createOrderPayload: CreateOrderPayload = {
+      asset,
+      quantity,
+      side,
+      leverage,
+      slippage,
+      tradeOpeningPrice,
+      ...(typeof stopLoss === 'number' ? { stopLoss } : {}),
+      ...(typeof takeProfit === 'number' ? { takeProfit } : {}),
     };
 
-    const openPending = redisSubscriber.waitForMessage<{ tradeDetails: unknown; balance?: number }>(requestId);
+    let tradeDetails: unknown;
+    let balance: number | undefined;
+
     try {
-      await httpPusher.xAdd(CREATE_ORDER_QUEUE, '*', payload);
-    } catch (e) {
-      redisSubscriber.cancelWait(requestId);
-      throw e;
+      ({ tradeDetails, balance } = await dispatchCreateOrder(req.user as string, createOrderPayload));
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'reason' in err && (err as { reason?: string }).reason === 'User not found') {
+        await ensureUserInEngine(user);
+        ({ tradeDetails, balance } = await dispatchCreateOrder(req.user as string, createOrderPayload));
+      } else {
+        throw err;
+      }
     }
-    const { tradeDetails, balance } = await openPending;
+
+    persistBalanceInBackground(user.id, balance);
 
     res.status(201).json({
       success: true,
